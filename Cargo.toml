@@ -1,0 +1,27 @@
+[package]
+name    = "cw-jellyfish-merkle"
+version = "0.0.0"
+edition = "2021"
+
+[features]
+default    = []
+library    = []
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+blake3          = { version = "1", features = ["serde"] }
+cosmwasm-schema = "1.4"
+cosmwasm-std    = "1.4"
+# this fork of cw-storage-plus introduces a Key::Owned enum variant:
+# https://github.com/larry0x/cw-storage-plus/commit/d35b9fb
+#
+# the rationale for this change:
+# https://github.com/CosmWasm/cw-storage-plus/issues/58
+cw-storage-plus = { git = "https://github.com/larry0x/cw-storage-plus.git", rev = "d35b9fb" }
+hex             = "0.4"
+schemars        = "0.8"
+serde           = { version = "1", default-features = false }
+thiserror       = "1"
+
+[dev-dependencies]
+serde_json = "1"
