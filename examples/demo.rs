@@ -13,6 +13,11 @@ fn print_nodes(store: &dyn Storage) {
     print_json_pretty(&res)
 }
 
+fn print_orphans(store: &dyn Storage) {
+    let res = query::orphans(store, None, Some(u32::MAX)).unwrap();
+    print_json_pretty(&res)
+}
+
 fn print_value_of(store: &dyn Storage, key: &str) {
     let res = query::get(store, key.into()).unwrap();
     print_json_pretty(&res)
@@ -42,6 +47,10 @@ fn main() {
     println!("NODES:");
     println!("------------------------------------------------------------------");
     print_nodes(&store);
+
+    println!("\nORPHANS:");
+    println!("------------------------------------------------------------------");
+    print_orphans(&store);
 
     println!("\nKEY-VALUE PAIRS:");
     println!("------------------------------------------------------------------");

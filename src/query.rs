@@ -1,7 +1,7 @@
 use {
     crate::{
-        msg::{GetResponse, NodeResponse},
-        state::{LAST_COMMITTED_VERSION, NODES},
+        msg::{GetResponse, NodeResponse, OrphanResponse},
+        state::{LAST_COMMITTED_VERSION, NODES, ORPHANS},
         types::{NibbleIterator, NibblePath, Node, NodeKey},
     },
     cosmwasm_std::{ensure, Order, StdError, StdResult, Storage},
@@ -85,6 +85,27 @@ pub fn nodes(
             Ok(NodeResponse {
                 node_key,
                 node,
+            })
+        })
+        .collect()
+}
+
+pub fn orphans(
+    store: &dyn Storage,
+    start_after: Option<&OrphanResponse>,
+    limit: Option<u32>,
+) -> StdResult<Vec<OrphanResponse>> {
+    let start = start_after.map(|o| Bound::exclusive((o.since_version, &o.node_key)));
+    let limit = limit.unwrap_or(DEFAULT_LIMIT) as usize;
+
+    ORPHANS
+        .items(store, start, None, Order::Ascending)
+        .take(limit)
+        .map(|item| {
+            let (since_version, node_key) = item?;
+            Ok(OrphanResponse {
+                node_key,
+                since_version,
             })
         })
         .collect()

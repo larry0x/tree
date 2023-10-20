@@ -145,13 +145,3 @@ impl LeafNode {
         }
     }
 }
-
-#[cw_serde]
-pub struct StaleNodeIndex {
-    pub node_key: NodeKey,
-    pub stale_since_version: u64,
-}
-
-// impl<'a> PrimaryKey<'a> for &'a StaleNodeIndex {
-// }
-

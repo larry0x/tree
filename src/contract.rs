@@ -43,6 +43,10 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary> {
             start_after,
             limit,
         } => to_binary(&query::nodes(deps.storage, start_after.as_ref(), limit)?),
+        QueryMsg::Orphans {
+            start_after,
+            limit,
+        } => to_binary(&query::orphans(deps.storage, start_after.as_ref(), limit)?),
     }
     .map_err(Into::into)
 }

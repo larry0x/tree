@@ -2,9 +2,9 @@
 pub mod contract;
 pub mod error;
 pub mod execute;
-pub mod indexed_set;
 pub mod msg;
 pub mod query;
+pub mod set;
 pub mod state;
 pub mod types;
 

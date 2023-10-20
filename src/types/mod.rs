@@ -6,4 +6,4 @@ mod node;
 
 pub use nibble::Nibble;
 pub use nibble_path::{NibbleIterator, NibblePath};
-pub use node::{Child, InternalNode, LeafNode, Node, NodeKey, StaleNodeIndex};
+pub use node::{Child, InternalNode, LeafNode, Node, NodeKey};

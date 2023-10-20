@@ -1,5 +1,5 @@
 use {
-    crate::types::{Node, NodeKey, StaleNodeIndex},
+    crate::types::{Node, NodeKey},
     cosmwasm_schema::{cw_serde, QueryResponses},
     cosmwasm_std::Empty,
 };
@@ -53,6 +53,14 @@ pub enum QueryMsg {
         start_after: Option<NodeKey>,
         limit: Option<u32>,
     },
+
+    /// List nodes that are orphaned, i.e. no longer part of the latest version
+    /// of the tree.
+    #[returns(Vec<OrphanResponse>)]
+    Orphans {
+        start_after: Option<OrphanResponse>,
+        limit: Option<u32>,
+    },
 }
 
 #[cw_serde]
@@ -67,4 +75,10 @@ pub struct GetResponse {
 pub struct NodeResponse {
     pub node_key: NodeKey,
     pub node: Node,
+}
+
+#[cw_serde]
+pub struct OrphanResponse {
+    pub node_key: NodeKey,
+    pub since_version: u64,
 }

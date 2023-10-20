@@ -1,7 +1,7 @@
 use {
     crate::{
         error::{Error, Result},
-        state::{LAST_COMMITTED_VERSION, NODES},
+        state::{LAST_COMMITTED_VERSION, NODES, ORPHANS},
         types::{Child, InternalNode, LeafNode, NibbleIterator, NibblePath, Node, NodeKey},
     },
     cosmwasm_std::{ensure, Response, StdResult, Storage},
@@ -80,7 +80,7 @@ fn insert_at_internal(
     nibble_iter: &mut NibbleIterator,
     new_leaf_node: LeafNode,
 ) -> Result<(NodeKey, Node)> {
-    // TODO: delete the existing internal node
+    mark_node_as_orphaned(store, version, &current_node_key)?;
 
     let child_index = nibble_iter.next().unwrap();
     let child_nibble_path = current_node_key.nibble_path.child(child_index);
@@ -110,7 +110,8 @@ fn insert_at_leaf(
     nibble_iter: &mut NibbleIterator,
     new_leaf_node: LeafNode,
 ) -> Result<(NodeKey, Node)> {
-    // TODO: delete the existing leaf node
+    // The current node is necessarily orphaned, so we mark it as such
+    mark_node_as_orphaned(store, version, &current_node_key)?;
 
     // Firstly, if the existing leaf node has exactly the same key_hash as the
     // new leaf node, then we simply update the value and return.
@@ -306,6 +307,14 @@ fn delete_node(
     stale_since_version: u64,
 ) -> Result<()> {
     todo!();
+}
+
+fn mark_node_as_orphaned(
+    store: &mut dyn Storage,
+    version: u64,
+    node_key: &NodeKey,
+) -> StdResult<()> {
+    ORPHANS.insert(store, (version, node_key)).map(|_| ())
 }
 
 fn increment_version(store: &mut dyn Storage) -> StdResult<u64> {
