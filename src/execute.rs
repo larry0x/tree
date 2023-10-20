@@ -331,7 +331,7 @@ fn mark_node_as_orphaned(
     version: u64,
     node_key: &NodeKey,
 ) -> StdResult<()> {
-    ORPHANS.insert(store, (version, node_key)).map(|_| ())
+    ORPHANS.insert(store, (version, node_key))
 }
 
 fn increment_version(store: &mut dyn Storage) -> StdResult<u64> {
