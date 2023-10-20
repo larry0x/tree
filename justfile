@@ -17,11 +17,11 @@ optimize-arm:
     --mount type=volume,source="$(basename "$(pwd)")_cache",target=/target \
     --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
     --platform linux/arm64 \
-    cosmwasm/workspace-optimizer-arm64:0.14.0
+    cosmwasm/rust-optimizer-arm64:0.14.0
 
 optimize-x86:
   docker run --rm -v "$(pwd)":/code \
     --mount type=volume,source="$(basename "$(pwd)")_cache",target=/target \
     --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
     --platform linux/amd64 \
-    cosmwasm/workspace-optimizer:0.14.0
+    cosmwasm/rust-optimizer:0.14.0
