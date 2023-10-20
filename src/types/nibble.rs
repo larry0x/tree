@@ -59,7 +59,7 @@ impl<'de> Visitor<'de> for NibbleVisitor {
         E: de::Error,
     {
         let hex_str = format!("0{v}");
-        let bytes = hex::decode(&hex_str).map_err(|err| E::custom(err))?;
+        let bytes = hex::decode(hex_str).map_err(|err| E::custom(err))?;
         Ok(Nibble(bytes[0]))
     }
 }

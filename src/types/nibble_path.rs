@@ -39,7 +39,7 @@ impl NibblePath {
         if self.num_nibbles % 2 == 0 {
             self.bytes.push(nibble.byte() << 4);
         } else {
-            self.bytes[self.num_nibbles as usize / 2] |= nibble.byte();
+            self.bytes[self.num_nibbles / 2] |= nibble.byte();
         }
 
         self.num_nibbles += 1;
@@ -65,12 +65,12 @@ impl NibblePath {
 
     // panics if index is out of range
     pub fn get_nibble(&self, i: usize) -> Nibble {
-        assert!(i < self.num_nibbles as usize);
+        assert!(i < self.num_nibbles);
         Nibble::from((self.bytes[i / 2] >> (if i % 2 == 1 { 0 } else { 4 })) & 0xf)
     }
 
     pub fn nibbles(&self) -> NibbleIterator {
-        NibbleIterator::new(self, 0, self.num_nibbles.into())
+        NibbleIterator::new(self, 0, self.num_nibbles)
     }
 }
 
@@ -133,6 +133,14 @@ impl<'de> Visitor<'de> for NibblePathVisitor {
         formatter.write_str("a hex-encoded string")
     }
 
+    // clippy complains if I only implement visit_string but not visit_str
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        self.visit_string(v.into())
+    }
+
     fn visit_string<E>(self, mut v: String) -> Result<Self::Value, E>
     where
         E: de::Error,
@@ -154,7 +162,7 @@ impl KeyDeserialize for NibblePath {
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         ensure!(
-            value.len() >= 1,
+            !value.is_empty(),
             StdError::parse_err(type_name::<Self::Output>(), "raw key must have at least 1 byte")
         );
 

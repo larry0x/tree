@@ -21,7 +21,7 @@ pub fn insert(store: &mut dyn Storage, key: String, value: String) -> Result<Res
     let version = increment_version(store)?;
 
     let key_hash = blake3::hash(key.as_bytes());
-    let nibble_path = NibblePath::from(key_hash.clone());
+    let nibble_path = NibblePath::from(key_hash);
 
     let new_leaf_node = LeafNode::new(key_hash, key.clone(), value.clone());
 
