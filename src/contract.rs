@@ -21,11 +21,11 @@ pub fn execute(deps: DepsMut, _: Env, _: MessageInfo, msg: ExecuteMsg) -> Result
             value,
         } => execute::insert(deps.storage, key, value),
         ExecuteMsg::Delete {
-            key,
+            key: _,
         } => todo!(),
         ExecuteMsg::Prune {
             up_to_version,
-        } => todo!(),
+        } => execute::prune(deps.storage, up_to_version),
     }
 }
 

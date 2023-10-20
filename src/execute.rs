@@ -1,3 +1,6 @@
+use cosmwasm_std::Order;
+use cw_storage_plus::PrefixBound;
+
 use {
     crate::{
         error::{Error, Result},
@@ -11,7 +14,7 @@ pub fn init(store: &mut dyn Storage) -> Result<Response> {
     // initialize version as zero
     LAST_COMMITTED_VERSION.save(store, &0)?;
 
-    Ok(Response::new().add_attribute("method", "init"))
+    Ok(Response::new())
 }
 
 pub fn insert(store: &mut dyn Storage, key: String, value: String) -> Result<Response> {
@@ -30,10 +33,7 @@ pub fn insert(store: &mut dyn Storage, key: String, value: String) -> Result<Res
         new_leaf_node,
     )?;
 
-    Ok(Response::new()
-        .add_attribute("method", "insert")
-        .add_attribute("key", key)
-        .add_attribute("value", value))
+    Ok(Response::new())
 }
 
 fn insert_at(
@@ -244,6 +244,30 @@ fn insert_at_leaf(
     Ok((new_node_key, new_node))
 }
 
+pub fn prune(store: &mut dyn Storage, up_to_version: Option<u64>) -> Result<Response> {
+    const BATCH_SIZE: usize = 10;
+
+    let end = up_to_version.map(PrefixBound::inclusive);
+
+    loop {
+        let batch = ORPHANS
+            .prefix_range(store, None, end.clone(), Order::Ascending)
+            .take(BATCH_SIZE)
+            .collect::<StdResult<Vec<_>>>()?;
+
+        for (stale_since_version, node_key) in &batch {
+            NODES.remove(store, node_key);
+            ORPHANS.remove(store, (*stale_since_version, node_key));
+        }
+
+        if batch.len() < BATCH_SIZE {
+            break;
+        }
+    }
+
+    Ok(Response::new())
+}
+
 /// Advance both iterators if their next nibbles are the same, until either
 /// reaches the end or their next nibbles mismatch. Return the number of matched
 /// nibbles.
@@ -299,14 +323,6 @@ fn create_leaf_node(
     NODES.save(store, &node_key, &node)?;
 
     Ok((node_key, node))
-}
-
-fn delete_node(
-    store: &mut dyn Storage,
-    node_key: &NodeKey,
-    stale_since_version: u64,
-) -> Result<()> {
-    todo!();
 }
 
 fn mark_node_as_orphaned(

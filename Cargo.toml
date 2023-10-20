@@ -21,12 +21,17 @@ backtraces = ["cosmwasm-std/backtraces"]
 blake3          = { version = "1", features = ["serde"] }
 cosmwasm-schema = "1.4"
 cosmwasm-std    = "1.4"
-# this fork of cw-storage-plus introduces a Key::Owned enum variant:
+# This fork of cw-storage-plus makes two changes:
+#
+# 1. Exporting the `namespaced_prefix_range` helper function, which we use in
+# defining the `Set` storage type.
+#
+# 2. Introducing a Key::Owned enum variant:
 # https://github.com/larry0x/cw-storage-plus/commit/d35b9fb
 #
-# the rationale for this change:
+# The rationale for this change:
 # https://github.com/CosmWasm/cw-storage-plus/issues/58
-cw-storage-plus = { git = "https://github.com/larry0x/cw-storage-plus.git", rev = "d35b9fb" }
+cw-storage-plus = { git = "https://github.com/larry0x/cw-storage-plus.git", rev = "c54332a" }
 hex             = "0.4"
 schemars        = "0.8"
 serde           = { version = "1", default-features = false }

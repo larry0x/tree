@@ -242,7 +242,7 @@ dependencies = [
 [[package]]
 name = "cw-storage-plus"
 version = "1.1.0"
-source = "git+https://github.com/larry0x/cw-storage-plus.git?rev=d35b9fb#d35b9fb0924f9a1afacd23c287a99a20213a57ec"
+source = "git+https://github.com/larry0x/cw-storage-plus.git?rev=c54332a#c54332ae49cbaf3529cf1009f07135750c0261b9"
 dependencies = [
  "cosmwasm-std",
  "schemars",

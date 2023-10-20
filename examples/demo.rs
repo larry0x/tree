@@ -62,4 +62,16 @@ fn main() {
     print_value_of(&store, "jake");
     print_value_of(&store, "satoshi");
     print_value_of(&store, "larry"); // should be None
+
+    // let's try pruning orphaned nodes
+    println!("\n******************** pruning orphaned nodes ********************");
+    execute::prune(&mut store, None).unwrap();
+
+    println!("NODES AFTER PRUNING:");
+    println!("------------------------------------------------------------------");
+    print_nodes(&store);
+
+    println!("\nORPHANS AFTER PRUNING:");
+    println!("------------------------------------------------------------------");
+    print_orphans(&store);
 }

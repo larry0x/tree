@@ -1,6 +1,9 @@
 use {
     cosmwasm_std::{Empty, Order, StdResult, Storage},
-    cw_storage_plus::{Bound, Key, KeyDeserialize, Path, Prefix, Prefixer, PrimaryKey},
+    cw_storage_plus::{
+        namespaced_prefix_range, Bound, Key, KeyDeserialize, Path, Prefix, PrefixBound, Prefixer,
+        PrimaryKey,
+    },
     std::marker::PhantomData,
 };
 
@@ -47,16 +50,37 @@ where
         self.key(item).remove(store)
     }
 
-    pub fn items<'c>(
+    pub fn items<'b>(
         &self,
-        store: &'c dyn Storage,
+        store: &'b dyn Storage,
         min: Option<Bound<'a, T>>,
         max: Option<Bound<'a, T>>,
+        order: Order,
+    ) -> Box<dyn Iterator<Item = StdResult<T::Output>> + 'b>
+    where
+        T::Output: 'static,
+    {
+        self.no_prefix().keys(store, min, max, order)
+    }
+
+    pub fn prefix_range<'c>(
+        &self,
+        store: &'c dyn Storage,
+        min: Option<PrefixBound<'a, T::Prefix>>,
+        max: Option<PrefixBound<'a, T::Prefix>>,
         order: Order,
     ) -> Box<dyn Iterator<Item = StdResult<T::Output>> + 'c>
     where
         T::Output: 'static,
     {
-        self.no_prefix().keys(store, min, max, order)
+        let mapped = namespaced_prefix_range(
+            store, self.namespace,
+            min,
+            max,
+            order,
+        )
+        .map(|(k, _)| T::from_vec(k));
+
+        Box::new(mapped)
     }
 }
