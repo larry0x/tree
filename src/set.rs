@@ -33,10 +33,6 @@ where
         Prefix::new(self.namespace, &[])
     }
 
-    pub fn contains(&self, store: &dyn Storage, item: T) -> bool {
-        self.key(item).has(store)
-    }
-
     pub fn insert(&self, store: &mut dyn Storage, item: T) -> StdResult<()> {
         self.key(item).save(store, &Empty {})
     }
