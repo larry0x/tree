@@ -1,13 +1,11 @@
-use cosmwasm_std::Order;
-use cw_storage_plus::PrefixBound;
-
 use {
     crate::{
         error::{Error, Result},
         state::{LAST_COMMITTED_VERSION, NODES, ORPHANS},
         types::{Child, InternalNode, LeafNode, NibbleIterator, NibblePath, Node, NodeKey},
     },
-    cosmwasm_std::{ensure, Response, StdResult, Storage},
+    cosmwasm_std::{ensure, Order, Response, StdResult, Storage},
+    cw_storage_plus::PrefixBound,
 };
 
 pub fn init(store: &mut dyn Storage) -> Result<Response> {
@@ -187,7 +185,10 @@ fn insert_at_leaf(
     // - num_common_nibbles_below_internal = 2
     // - common_nibble_path = [0, 1, 2, 3, 4]
     let mut existing_leaf_nibbles_below_internal = existing_leaf_nibbles.remaining_nibbles();
-    let num_common_nibbles_below_internal = skip_common_prefix(nibble_iter, &mut existing_leaf_nibbles_below_internal);
+    let num_common_nibbles_below_internal = skip_common_prefix(
+        nibble_iter,
+        &mut existing_leaf_nibbles_below_internal,
+    );
     let mut common_nibble_path: NibblePath = nibble_iter.visited_nibbles().collect();
 
     // Now what we need to do is to create 3 new internal nodes, with the

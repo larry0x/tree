@@ -1,8 +1,7 @@
 use {
     cosmwasm_std::{Empty, Order, StdResult, Storage},
     cw_storage_plus::{
-        namespaced_prefix_range, Bound, Key, KeyDeserialize, Path, Prefix, PrefixBound, Prefixer,
-        PrimaryKey,
+        namespaced_prefix_range, Bound, Key, KeyDeserialize, Path, Prefix, PrefixBound, PrimaryKey,
     },
     std::marker::PhantomData,
 };
@@ -32,10 +31,6 @@ where
 
     fn no_prefix(&self) -> Prefix<T, Empty, T> {
         Prefix::new(self.namespace, &[])
-    }
-
-    pub fn prefix(&self, p: T::Prefix) -> Prefix<T::Suffix, Empty, T::Suffix> {
-        Prefix::new(self.namespace, &p.prefix())
     }
 
     pub fn contains(&self, store: &dyn Storage, item: T) -> bool {
