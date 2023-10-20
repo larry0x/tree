@@ -19,7 +19,7 @@ jobs:
           toolchain: stable
 
       - name: Run tests
-        run: just rust-test
+        run: just test
         env:
           RUST_BACKTRACE: 1
 
@@ -40,6 +40,6 @@ jobs:
           components: clippy
 
       - name: Run linter
-        run: just rust-lint
+        run: just clippy
         env:
           RUST_BACKTRACE: 1

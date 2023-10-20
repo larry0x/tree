@@ -20,6 +20,6 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Check for errors
-        run: just rust-check
+        run: just check
         env:
           RUST_BACKTRACE: 1
