@@ -1,6 +1,6 @@
 use {
     crate::{
-        msg::{GetResponse, NodeResponse, OrphanResponse},
+        msg::{GetResponse, NodeResponse, OrphanResponse, RootResponse},
         state::{LAST_COMMITTED_VERSION, NODES, ORPHANS},
         types::{NibbleIterator, NibblePath, Node, NodeKey},
     },
@@ -10,8 +10,18 @@ use {
 
 const DEFAULT_LIMIT: u32 = 10;
 
-pub fn version(store: &dyn Storage) -> StdResult<u64> {
-    LAST_COMMITTED_VERSION.load(store)
+pub fn root(store: &dyn Storage) -> StdResult<RootResponse> {
+    let version = LAST_COMMITTED_VERSION.load(store)?;
+    let root_node_key = NodeKey {
+        version,
+        nibble_path: NibblePath::empty(),
+    };
+    let root_node = NODES.load(store, &root_node_key)?;
+
+    Ok(RootResponse {
+        version,
+        root_hash: root_node.hash().as_bytes().into(),
+    })
 }
 
 pub fn get(store: &dyn Storage, key: String) -> StdResult<GetResponse> {

@@ -1,7 +1,7 @@
 use {
     crate::types::{Node, NodeKey},
     cosmwasm_schema::{cw_serde, QueryResponses},
-    cosmwasm_std::Empty,
+    cosmwasm_std::{Empty, HexBinary},
 };
 
 pub type InstantiateMsg = Empty;
@@ -31,9 +31,9 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    /// Query the tree's current version
+    /// Query the latest root node
     #[returns(u64)]
-    Version {},
+    Root {},
 
     /// Query the value corresponding to the given key
     #[returns(GetResponse)]
@@ -61,6 +61,12 @@ pub enum QueryMsg {
         start_after: Option<OrphanResponse>,
         limit: Option<u32>,
     },
+}
+
+#[cw_serde]
+pub struct RootResponse {
+    pub version: u64,
+    pub root_hash: HexBinary,
 }
 
 #[cw_serde]

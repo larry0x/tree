@@ -8,6 +8,11 @@ fn insert(store: &mut dyn Storage, key: &str, value: &str) {
     execute::insert(store, key.into(), value.into()).unwrap();
 }
 
+fn print_root(store: &dyn Storage) {
+    let res = query::root(store).unwrap();
+    print_json_pretty(&res);
+}
+
 fn print_nodes(store: &dyn Storage) {
     let res = query::nodes(store, None, Some(u32::MAX)).unwrap();
     print_json_pretty(&res)
@@ -44,7 +49,11 @@ fn main() {
     insert(&mut store, "jake", "shepherd");
     insert(&mut store, "satoshi", "nakamoto");
 
-    println!("NODES:");
+    println!("ROOT:");
+    println!("------------------------------------------------------------------");
+    print_root(&store);
+
+    println!("\nNODES:");
     println!("------------------------------------------------------------------");
     print_nodes(&store);
 
