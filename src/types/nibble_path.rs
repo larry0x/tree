@@ -1,7 +1,6 @@
 use {
-    crate::types::Nibble,
-    blake3::{Hash, OUT_LEN},
-    cosmwasm_std::{ensure, ensure_eq, HexBinary, StdError, StdResult},
+    crate::types::{Hash, Nibble, HASH_LEN},
+    cosmwasm_std::{ensure, ensure_eq, StdError, StdResult},
     cw_storage_plus::KeyDeserialize,
     schemars::JsonSchema,
     serde::{
@@ -87,17 +86,8 @@ impl FromIterator<Nibble> for NibblePath {
 impl From<Hash> for NibblePath {
     fn from(hash: Hash) -> Self {
         Self {
-            num_nibbles: OUT_LEN * 2,
-            bytes: hash.as_bytes().to_vec(),
-        }
-    }
-}
-
-impl From<HexBinary> for NibblePath {
-    fn from(bytes: HexBinary) -> Self {
-        Self {
-            num_nibbles: bytes.len() * 2,
-            bytes: bytes.into(),
+            num_nibbles: HASH_LEN * 2,
+            bytes: hash.into_bytes().to_vec(),
         }
     }
 }

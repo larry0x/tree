@@ -2,7 +2,7 @@ use {
     crate::{
         error::{Error, Result},
         state::{LAST_COMMITTED_VERSION, NODES, ORPHANS},
-        types::{Child, InternalNode, LeafNode, NibbleIterator, NibblePath, Node, NodeKey},
+        types::{hash, Child, InternalNode, LeafNode, NibbleIterator, NibblePath, Node, NodeKey},
     },
     cosmwasm_std::{ensure, Order, Response, StdResult, Storage},
     cw_storage_plus::PrefixBound,
@@ -18,8 +18,8 @@ pub fn init(store: &mut dyn Storage) -> Result<Response> {
 pub fn insert(store: &mut dyn Storage, key: String, value: String) -> Result<Response> {
     let version = increment_version(store)?;
 
-    let key_hash = blake3::hash(key.as_bytes());
-    let nibble_path = NibblePath::from(key_hash);
+    let key_hash = hash(key.as_bytes());
+    let nibble_path = NibblePath::from(key_hash.clone());
 
     let new_leaf_node = LeafNode::new(key_hash, key.clone(), value.clone());
 
@@ -99,7 +99,7 @@ fn insert_at_internal(
     current_node.children.set(Child {
         index: child_index,
         version,
-        hash: child.hash().as_bytes().into(),
+        hash: child.hash(),
     });
 
     create_internal_node(store, version, current_node_key.nibble_path, current_node)
@@ -228,12 +228,12 @@ fn insert_at_leaf(
         Child {
             index: existing_leaf_index,
             version,
-            hash: existing_leaf_node.hash().as_bytes().into(),
+            hash: existing_leaf_node.hash(),
         },
         Child {
             index: new_leaf_index,
             version,
-            hash: new_leaf_node.hash().as_bytes().into(),
+            hash: new_leaf_node.hash(),
         },
     ]);
     let (mut new_node_key, mut new_node) = create_internal_node(
@@ -249,7 +249,7 @@ fn insert_at_leaf(
         let new_internal_node = InternalNode::new([Child {
             index,
             version,
-            hash: new_node.hash().as_bytes().into(),
+            hash: new_node.hash(),
         }]);
         (new_node_key, new_node) = create_internal_node(
             store,

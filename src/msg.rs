@@ -1,7 +1,7 @@
 use {
-    crate::types::{Node, NodeKey},
+    crate::types::{Hash, Node, NodeKey},
     cosmwasm_schema::{cw_serde, QueryResponses},
-    cosmwasm_std::{Empty, HexBinary},
+    cosmwasm_std::Empty,
 };
 
 pub type InstantiateMsg = Empty;
@@ -66,7 +66,7 @@ pub enum QueryMsg {
 #[cw_serde]
 pub struct RootResponse {
     pub version: u64,
-    pub root_hash: HexBinary,
+    pub root_hash: Hash,
 }
 
 #[cw_serde]

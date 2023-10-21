@@ -2,7 +2,7 @@ use {
     crate::{
         msg::{GetResponse, NodeResponse, OrphanResponse, RootResponse},
         state::{LAST_COMMITTED_VERSION, NODES, ORPHANS},
-        types::{NibbleIterator, NibblePath, Node, NodeKey},
+        types::{hash, NibbleIterator, NibblePath, Node, NodeKey},
     },
     cosmwasm_std::{ensure, Order, StdError, StdResult, Storage},
     cw_storage_plus::Bound,
@@ -20,7 +20,7 @@ pub fn root(store: &dyn Storage) -> StdResult<RootResponse> {
 
     Ok(RootResponse {
         version,
-        root_hash: root_node.hash().as_bytes().into(),
+        root_hash: root_node.hash(),
     })
 }
 
@@ -28,7 +28,7 @@ pub fn get(store: &dyn Storage, key: String) -> StdResult<GetResponse> {
     let version = LAST_COMMITTED_VERSION.load(store)?;
     let node_key = NodeKey::root(version);
 
-    let key_hash = blake3::hash(key.as_bytes());
+    let key_hash = hash(key.as_bytes());
     let nibble_path = NibblePath::from(key_hash);
 
     Ok(GetResponse {
@@ -67,7 +67,8 @@ fn get_value_at(
             get_value_at(store, child_node_key, nibble_iter)
         },
         Node::Leaf(leaf_node) => {
-            if leaf_node.key_hash == nibble_iter.nibble_path().bytes {
+            // TODO: impl PartialEq to prettify this syntax
+            if leaf_node.key_hash.into_bytes().as_ref() == nibble_iter.nibble_path().bytes {
                 return Ok(Some(leaf_node.value))
             }
 

@@ -1,8 +1,7 @@
 use {
-    crate::types::{Nibble, NibblePath},
-    blake3::Hash,
+    crate::types::{hash_two, Hash, Nibble, NibblePath},
     cosmwasm_schema::cw_serde,
-    cosmwasm_std::{ensure, HexBinary, StdError, StdResult},
+    cosmwasm_std::{ensure, StdError, StdResult},
     cw_storage_plus::{Key, KeyDeserialize, PrimaryKey},
     std::{any::type_name, mem},
 };
@@ -100,7 +99,7 @@ pub struct Child {
     pub version: u64,
 
     // The child node's hash. We need this to compute the parent node's hash.
-    pub hash: HexBinary,
+    pub hash: Hash,
 }
 
 // Ideally we want to usd a map type such as BTreeMap. Unfortunately, CosmWasm
@@ -171,14 +170,7 @@ impl InternalNode {
 
 #[cw_serde]
 pub struct LeafNode {
-    // TODO: We use HexBinary for now because it serializes better than blake3::Hash.
-    // We should create a wrapper type Hash(blake3::Hash) that is fixed length
-    // and has good serialization
-    pub key_hash: HexBinary,
-
-    // We don't really need to store the raw key and value, but we do it here
-    // for demo purpose.
-    // In production, the tree will only store hash(key) and hash(value).
+    pub key_hash: Hash,
     pub key: String,
     pub value: String,
 }
@@ -186,7 +178,7 @@ pub struct LeafNode {
 impl LeafNode {
     pub fn new(key_hash: Hash, key: String, value: String) -> Self {
         Self {
-            key_hash: key_hash.as_bytes().into(),
+            key_hash,
             key,
             value,
         }
@@ -208,9 +200,7 @@ fn merkle_hash(siblings: &[Child], start: usize, end: usize) -> Hash {
     }
 
     if siblings.len() == 1 {
-        // how ugly! we can fix this by introducing the Hash([u8; OUT_LEN])
-        // wrapper type
-        return Hash::from_bytes(siblings[0].hash.as_slice().try_into().unwrap());
+        return siblings[0].hash.clone();
     }
 
     let mid = (start + end) / 2;
@@ -220,12 +210,5 @@ fn merkle_hash(siblings: &[Child], start: usize, end: usize) -> Hash {
     let left_half = merkle_hash(&siblings[..mid_pos], start, mid);
     let right_half = merkle_hash(&siblings[mid_pos..], mid, end);
 
-    hash_two(left_half.as_bytes(), right_half.as_bytes())
-}
-
-fn hash_two(a: impl AsRef<[u8]>, b: impl AsRef<[u8]>) -> Hash {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(a.as_ref());
-    hasher.update(b.as_ref());
-    hasher.finalize()
+    hash_two(left_half, right_half)
 }
