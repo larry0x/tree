@@ -40,6 +40,6 @@ jobs:
           components: clippy
 
       - name: Run linter
-        run: just clippy
+        run: just lint
         env:
           RUST_BACKTRACE: 1

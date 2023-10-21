@@ -1,7 +1,7 @@
 check:
   cargo check --target wasm32-unknown-unknown
 
-clippy:
+lint:
   cargo +nightly clippy --tests
 
 test:
