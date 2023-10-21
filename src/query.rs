@@ -12,6 +12,7 @@ use {
 
 const DEFAULT_LIMIT: u32 = 10;
 
+/// If the user specifies a version, we use it. Otherwise, load the latest version.
 fn unwrap_version(store: &dyn Storage, version: Option<u64>) -> StdResult<u64> {
     if let Some(version) = version {
         Ok(version)
@@ -81,7 +82,7 @@ fn get_value_at(
                         latest_version,
                         query_version: current_node_key.version,
                     })
-                }
+                },
             };
         } else {
             return Err(Error::NonRootNodeNotFound {});
