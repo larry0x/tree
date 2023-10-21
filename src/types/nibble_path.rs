@@ -2,6 +2,7 @@ use {
     crate::types::{Hash, Nibble, HASH_LEN},
     cosmwasm_std::{ensure, ensure_eq, StdError, StdResult},
     cw_storage_plus::KeyDeserialize,
+    hex::FromHexError,
     schemars::JsonSchema,
     serde::{
         de::{self, Deserialize, Deserializer, Visitor},
@@ -71,6 +72,29 @@ impl NibblePath {
     pub fn nibbles(&self) -> NibbleIterator {
         NibbleIterator::new(self, 0, self.num_nibbles)
     }
+
+    pub fn to_hex(&self) -> String {
+        let mut hex_str = hex::encode(&self.bytes);
+        if self.num_nibbles % 2 != 0 {
+            hex_str.pop();
+        }
+        hex_str
+    }
+
+    pub fn from_hex(mut hex_str: String) -> Result<Self, FromHexError> {
+        let num_nibbles = hex_str.len();
+
+        if num_nibbles % 2 != 0 {
+            hex_str.push('0');
+        }
+
+        let bytes = hex::decode(hex_str)?;
+
+        Ok(NibblePath {
+            num_nibbles,
+            bytes,
+        })
+    }
 }
 
 impl FromIterator<Nibble> for NibblePath {
@@ -97,10 +121,7 @@ impl Serialize for NibblePath {
     where
         S: Serializer,
     {
-        let mut hex_str = hex::encode(&self.bytes);
-        if self.num_nibbles % 2 != 0 {
-            hex_str.pop();
-        }
+        let hex_str = self.to_hex();
         serializer.serialize_str(&hex_str)
     }
 }
@@ -131,19 +152,11 @@ impl<'de> Visitor<'de> for NibblePathVisitor {
         self.visit_string(v.into())
     }
 
-    fn visit_string<E>(self, mut v: String) -> Result<Self::Value, E>
+    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
     where
         E: de::Error,
     {
-        let num_nibbles = v.len();
-
-        if num_nibbles % 2 != 0 {
-            v.push('0');
-        }
-
-        let bytes = hex::decode(v).map_err(|err| E::custom(err))?;
-
-        Ok(NibblePath { num_nibbles, bytes })
+        NibblePath::from_hex(v).map_err(|err| E::custom(err))
     }
 }
 

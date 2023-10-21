@@ -44,7 +44,10 @@ fn insert_at(
     let Some(current_node) = NODES.may_load(store, &current_node_key)? else {
         // Node is not found. The only case where this is allowed to happen is
         // if the current node is the root, which means the tree is empty.
-        ensure!(current_node_key.nibble_path.is_empty(), Error::NonRootNodeNotFound {});
+        ensure!(
+            current_node_key.nibble_path.is_empty(),
+            Error::NonRootNodeNotFound { node_key: current_node_key }
+        );
 
         // In this case, we simply create a new leaf node and make it the root.
         return create_leaf_node(store, version, NibblePath::empty(), new_leaf_node);

@@ -85,7 +85,7 @@ fn get_value_at(
                 },
             };
         } else {
-            return Err(Error::NonRootNodeNotFound {});
+            return Err(Error::NonRootNodeNotFound { node_key: current_node_key });
         }
     };
 

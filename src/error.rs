@@ -1,3 +1,5 @@
+use crate::types::NodeKey;
+
 #[derive(Debug, PartialEq, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
@@ -14,9 +16,13 @@ pub enum Error {
         version: u64,
     },
 
-    #[error("tree corrupted: non-root node not found")]
+    #[error(
+        "tree corrupted! non-root node not found (version: {}, nibble_path: {})",
+        node_key.version,
+        node_key.nibble_path.to_hex(),
+    )]
     NonRootNodeNotFound {
-        // TODO: add node_key here
+        node_key: NodeKey,
     },
 }
 
