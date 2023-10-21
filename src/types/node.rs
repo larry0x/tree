@@ -159,6 +159,25 @@ impl InternalNode {
     }
 }
 
+fn merkle_hash(siblings: &[Child], start: usize, end: usize) -> Hash {
+    if siblings.is_empty() {
+        return PLACEHOLDER_HASH.into();
+    }
+
+    if siblings.len() == 1 {
+        return siblings[0].hash.clone();
+    }
+
+    let mid = (start + end) / 2;
+    let mid_nibble = Nibble::from(mid);
+    let mid_pos = siblings.iter().position(|child| child.index >= mid_nibble).unwrap_or(end);
+
+    let left_half = merkle_hash(&siblings[..mid_pos], start, mid);
+    let right_half = merkle_hash(&siblings[mid_pos..], mid, end);
+
+    hash_two(left_half, right_half)
+}
+
 #[cw_serde]
 pub struct LeafNode {
     pub key_hash: Hash,
@@ -179,25 +198,4 @@ impl LeafNode {
     pub fn hash(&self) -> Hash {
         hash_two(&self.key_hash, &self.value)
     }
-}
-
-/// We use the bisection method to derive the hash similar to the original Diem
-/// implementation.
-fn merkle_hash(siblings: &[Child], start: usize, end: usize) -> Hash {
-    if siblings.is_empty() {
-        return PLACEHOLDER_HASH.into();
-    }
-
-    if siblings.len() == 1 {
-        return siblings[0].hash.clone();
-    }
-
-    let mid = (start + end) / 2;
-    let mid_nibble = Nibble::from(mid);
-    let mid_pos = siblings.iter().position(|child| child.index >= mid_nibble).unwrap_or(end);
-
-    let left_half = merkle_hash(&siblings[..mid_pos], start, mid);
-    let right_half = merkle_hash(&siblings[mid_pos..], mid, end);
-
-    hash_two(left_half, right_half)
 }
