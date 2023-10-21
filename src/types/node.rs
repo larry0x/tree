@@ -87,18 +87,10 @@ impl Node {
 }
 
 #[cw_serde]
-// TODO: implement Ord manually considering that the fact that in practice,
-// `index` is guaranteed to be unique
 #[derive(Eq, PartialOrd, Ord)]
 pub struct Child {
     pub index: Nibble,
-
-    // We only need to store the child node's version, not it's full NodeKey,
-    // because it's full NodeKey is simply the current node's NodeKey plus the
-    // child index.
     pub version: u64,
-
-    // The child node's hash. We need this to compute the parent node's hash.
     pub hash: Hash,
 }
 
@@ -184,9 +176,7 @@ impl LeafNode {
         }
     }
 
-    /// A leaf node's hash is defined as `hash(hash(key) | hash(value))`.
-    // TOOD: not sure if this is more performant than simply `hash(key | value)`
-    // TODO: put this function in a trait?
+    /// A leaf node's hash is defined as `hash(hash(key) | hash(value))`
     pub fn hash(&self) -> Hash {
         hash_two(&self.key_hash, &self.value)
     }
