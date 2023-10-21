@@ -31,14 +31,19 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    /// Query the latest root node
+    /// Query the root node at a specific version
     #[returns(u64)]
-    Root {},
+    Root {
+        // default to latest version if not provided
+        version: Option<u64>,
+    },
 
     /// Query the value corresponding to the given key
     #[returns(GetResponse)]
     Get {
         key: String,
+        // default to latest version if not provided
+        version: Option<u64>,
     },
 
     /// Query a specific node by the node key

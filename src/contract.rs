@@ -32,10 +32,13 @@ pub fn execute(deps: DepsMut, _: Env, _: MessageInfo, msg: ExecuteMsg) -> Result
 #[entry_point]
 pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary> {
     match msg {
-        QueryMsg::Root {} => to_binary(&query::root(deps.storage)?),
+        QueryMsg::Root {
+            version,
+        } => to_binary(&query::root(deps.storage, version)?),
         QueryMsg::Get {
             key,
-        } => to_binary(&query::get(deps.storage, key)?),
+            version,
+        } => to_binary(&query::get(deps.storage, key, version)?),
         QueryMsg::Node {
             node_key,
         } => to_binary(&query::node(deps.storage, node_key)?),

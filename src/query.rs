@@ -1,22 +1,36 @@
 use {
     crate::{
+        error::{Error, Result},
         msg::{GetResponse, NodeResponse, OrphanResponse, RootResponse},
         state::{LAST_COMMITTED_VERSION, NODES, ORPHANS},
         types::{hash, NibbleIterator, NibblePath, Node, NodeKey},
     },
-    cosmwasm_std::{ensure, Order, StdError, StdResult, Storage},
+    cosmwasm_std::{Order, StdResult, Storage},
     cw_storage_plus::Bound,
+    std::cmp::Ordering,
 };
 
 const DEFAULT_LIMIT: u32 = 10;
 
-pub fn root(store: &dyn Storage) -> StdResult<RootResponse> {
-    let version = LAST_COMMITTED_VERSION.load(store)?;
+fn unwrap_version(store: &dyn Storage, version: Option<u64>) -> StdResult<u64> {
+    if let Some(version) = version {
+        Ok(version)
+    } else {
+        LAST_COMMITTED_VERSION.load(store)
+    }
+}
+
+pub fn root(store: &dyn Storage, version: Option<u64>) -> Result<RootResponse> {
+    let version = unwrap_version(store, version)?;
+
     let root_node_key = NodeKey {
         version,
         nibble_path: NibblePath::empty(),
     };
-    let root_node = NODES.load(store, &root_node_key)?;
+
+    let Some(root_node) = NODES.may_load(store, &root_node_key)? else {
+        return Err(Error::RootNodeNotFound { version });
+    };
 
     Ok(RootResponse {
         version,
@@ -24,8 +38,8 @@ pub fn root(store: &dyn Storage) -> StdResult<RootResponse> {
     })
 }
 
-pub fn get(store: &dyn Storage, key: String) -> StdResult<GetResponse> {
-    let version = LAST_COMMITTED_VERSION.load(store)?;
+pub fn get(store: &dyn Storage, key: String, version: Option<u64>) -> Result<GetResponse> {
+    let version = unwrap_version(store, version)?;
     let node_key = NodeKey::root(version);
 
     let key_hash = hash(key.as_bytes());
@@ -41,14 +55,37 @@ fn get_value_at(
     store: &dyn Storage,
     current_node_key: NodeKey,
     nibble_iter: &mut NibbleIterator,
-) -> StdResult<Option<String>> {
+) -> Result<Option<String>> {
     let Some(current_node) = NODES.may_load(store, &current_node_key)? else {
-        // Node is not found. The only case where this is allowed to happen is
-        // if the current node is the root, which means the tree is empty.
-        // TODO: use custom error type
-        ensure!(current_node_key.nibble_path.is_empty(), StdError::generic_err("node not found"));
-
-        return Ok(None);
+        // Node is not found. There are a few circumstances:
+        // - if the node is the root,
+        //   - and it's older than the latest version: it may simply be that
+        //     that version has been pruned
+        //   - and it's the current version: it may simply be that the current
+        //     tree is empty
+        //   - and it's newer than the latest version: this query is illegal
+        // - if the node is not the root: database corrupted
+        if current_node_key.nibble_path.is_empty() {
+            let latest_version = LAST_COMMITTED_VERSION.load(store)?;
+            return match current_node_key.version.cmp(&latest_version) {
+                Ordering::Equal => {
+                    Ok(None)
+                },
+                Ordering::Less => {
+                    Err(Error::RootNodeNotFound {
+                        version: current_node_key.version,
+                    })
+                },
+                Ordering::Greater => {
+                    Err(Error::VersionNewerThanLatest {
+                        latest_version,
+                        query_version: current_node_key.version,
+                    })
+                }
+            };
+        } else {
+            return Err(Error::NonRootNodeNotFound {});
+        }
     };
 
     match current_node {
@@ -77,7 +114,7 @@ fn get_value_at(
     }
 }
 
-pub fn node(store: &dyn Storage, node_key: NodeKey) -> StdResult<Option<NodeResponse>> {
+pub fn node(store: &dyn Storage, node_key: NodeKey) -> Result<Option<NodeResponse>> {
     Ok(NODES
         .may_load(store, &node_key)?
         .map(|node| NodeResponse {
@@ -111,7 +148,7 @@ pub fn orphans(
     store: &dyn Storage,
     start_after: Option<&OrphanResponse>,
     limit: Option<u32>,
-) -> StdResult<Vec<OrphanResponse>> {
+) -> Result<Vec<OrphanResponse>> {
     let start = start_after.map(|o| Bound::exclusive((o.since_version, &o.node_key)));
     let limit = limit.unwrap_or(DEFAULT_LIMIT) as usize;
 
