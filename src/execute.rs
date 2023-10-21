@@ -83,20 +83,25 @@ fn insert_at_internal(
     let child_index = nibble_iter.next().unwrap();
     let child_nibble_path = current_node_key.nibble_path.child(child_index);
 
-    match current_node.get_child(child_index) {
+    let (_, child) = match current_node.children.get(child_index) {
         Some(existing_child) => {
             let child_node_key = NodeKey {
                 version: existing_child.version,
                 nibble_path: child_nibble_path,
             };
-            insert_at(store, version, child_node_key, nibble_iter, new_leaf_node)?;
+            insert_at(store, version, child_node_key, nibble_iter, new_leaf_node)?
         },
         None => {
-            create_leaf_node(store, version, child_nibble_path, new_leaf_node)?;
+            create_leaf_node(store, version, child_nibble_path, new_leaf_node)?
         },
     };
 
-    current_node.set_child(child_index, version);
+    current_node.children.set(Child {
+        index: child_index,
+        version,
+        hash: child.hash().as_bytes().into(),
+    });
+
     create_internal_node(store, version, current_node_key.nibble_path, current_node)
 }
 
@@ -112,9 +117,15 @@ fn insert_at_leaf(
     mark_node_as_orphaned(store, version, &current_node_key)?;
 
     // Firstly, if the existing leaf node has exactly the same key_hash as the
-    // new leaf node, then we simply update the value and return.
+    // new leaf node:
+    // - if the values are also the same, then no need to do anything
+    // - if the values aren't the same, we create a new leaf node and return
     if current_node.key_hash == new_leaf_node.key_hash {
-        return create_leaf_node(store, version, current_node_key.nibble_path, new_leaf_node);
+        return if current_node.value == new_leaf_node.value {
+            Ok((current_node_key, Node::Leaf(current_node)))
+        } else {
+            create_leaf_node(store, version, current_node_key.nibble_path, new_leaf_node)
+        };
     }
 
     // What if they do not have the key_hash? Let's illustrate how this function
@@ -205,22 +216,24 @@ fn insert_at_leaf(
     // In this example, existing_leaf_index = 5
     let existing_leaf_index = existing_leaf_nibbles_below_internal.next().unwrap();
     let existing_leaf_nibble_path = common_nibble_path.child(existing_leaf_index);
-    create_leaf_node(store, version, existing_leaf_nibble_path, current_node)?;
+    let (_, existing_leaf_node) = create_leaf_node(store, version, existing_leaf_nibble_path, current_node)?;
 
     // In this example, new_leaf_index = 7
     let new_leaf_index = nibble_iter.next().unwrap();
     let new_leaf_nibble_path = common_nibble_path.child(new_leaf_index);
-    create_leaf_node(store, version, new_leaf_nibble_path, new_leaf_node)?;
+    let (_, new_leaf_node) = create_leaf_node(store, version, new_leaf_nibble_path, new_leaf_node)?;
 
     // Create the parent of the two new leaves which have indexes 5 and 7
     let new_internal_node = InternalNode::new([
         Child {
             index: existing_leaf_index,
             version,
+            hash: existing_leaf_node.hash().as_bytes().into(),
         },
         Child {
             index: new_leaf_index,
             version,
+            hash: new_leaf_node.hash().as_bytes().into(),
         },
     ]);
     let (mut new_node_key, mut new_node) = create_internal_node(
@@ -233,7 +246,11 @@ fn insert_at_leaf(
     // In this example, three indexes are iterated: 4, 3, 2
     for _ in 0..num_common_nibbles_below_internal {
         let index = common_nibble_path.pop().unwrap();
-        let new_internal_node = InternalNode::new([Child { index, version }]);
+        let new_internal_node = InternalNode::new([Child {
+            index,
+            version,
+            hash: new_node.hash().as_bytes().into(),
+        }]);
         (new_node_key, new_node) = create_internal_node(
             store,
             version,

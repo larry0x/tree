@@ -45,7 +45,7 @@ fn get_value_at(
         Node::Internal(internal_node) => {
             let index = nibble_iter.next().unwrap();
 
-            let Some(child) = internal_node.get_child(index) else {
+            let Some(child) = internal_node.children.get(index) else {
                 return Ok(None);
             };
 

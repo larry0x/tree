@@ -4,8 +4,10 @@ use {
     cosmwasm_schema::cw_serde,
     cosmwasm_std::{ensure, HexBinary, StdError, StdResult},
     cw_storage_plus::{Key, KeyDeserialize, PrimaryKey},
-    std::any::type_name,
+    std::{any::type_name, mem},
 };
+
+const PLACEHOLDER_HASH: [u8; blake3::OUT_LEN] = [0; blake3::OUT_LEN];
 
 #[cw_serde]
 #[derive(Eq, Hash)]
@@ -76,62 +78,107 @@ impl Node {
     pub fn new_leaf(key_hash: Hash, key: String, value: String) -> Self {
         Self::Leaf(LeafNode::new(key_hash, key, value))
     }
+
+    pub fn hash(&self) -> Hash {
+        match self {
+            Node::Internal(internal_node) => internal_node.hash(),
+            Node::Leaf(leaf_node) => leaf_node.hash(),
+        }
+    }
 }
 
 #[cw_serde]
-#[derive(Copy, Eq, PartialOrd, Ord)]
+// TODO: implement Ord manually considering that the fact that in practice,
+// `index` is guaranteed to be unique
+#[derive(Eq, PartialOrd, Ord)]
 pub struct Child {
     pub index: Nibble,
+
     // We only need to store the child node's version, not it's full NodeKey,
     // because it's full NodeKey is simply the current node's NodeKey plus the
     // child index.
     pub version: u64,
+
+    // The child node's hash. We need this to compute the parent node's hash.
+    pub hash: HexBinary,
 }
 
+// Ideally we want to usd a map type such as BTreeMap. Unfortunately, CosmWasm
+// doesn't support serialization for map types:
+// https://github.com/CosmWasm/serde-json-wasm/issues/41
 #[cw_serde]
-pub struct InternalNode {
-    // Ideally we want to usd a map type such as BTreeMap. Unfortunately,
-    // CosmWasm doesn't support serialization for map types:
-    // https://github.com/CosmWasm/serde-json-wasm/issues/41
-    //
-    // This is less efficient, and we want to keep the Vec sorted for dedup and
-    // reproducability...
-    pub children: Vec<Child>,
+pub struct Children(Vec<Child>);
+
+impl<T> From<T> for Children
+where
+    T: IntoIterator<Item = Child>,
+{
+    fn from(value: T) -> Self {
+        Self(value.into_iter().collect())
+    }
 }
 
-impl InternalNode {
-    pub fn new(children: impl IntoIterator<Item = Child>) -> Self {
-        Self {
-            children: children.into_iter().collect(),
-        }
+impl AsRef<[Child]> for Children {
+    fn as_ref(&self) -> &[Child] {
+        self.0.as_slice()
     }
+}
 
-    pub fn get_child(&self, index: Nibble) -> Option<&Child> {
-        self.children
+impl Children {
+    pub fn get(&self, index: Nibble) -> Option<&Child> {
+        self.0
             .iter()
             .find(|child| child.index == index)
     }
 
-    pub fn get_child_mut(&mut self, index: Nibble) -> Option<&mut Child> {
-        self.children
+    pub fn get_mut(&mut self, index: Nibble) -> Option<&mut Child> {
+        self.0
             .iter_mut()
             .find(|child| child.index == index)
     }
 
-    pub fn set_child(&mut self, index: Nibble, version: u64) {
-        if let Some(child) = self.get_child_mut(index) {
-            child.version = version;
+    pub fn set(&mut self, child: Child) {
+        if let Some(existing_child) = self.get_mut(child.index) {
+            // this way we put `child` into the internal node without cloning
+            // its value which is efficient
+            let _ = mem::replace(existing_child, child);
         } else {
-            self.children.push(Child { index, version });
-            self.children.sort();
+            self.0.push(child);
+            self.0.sort();
         }
+    }
+}
+
+#[cw_serde]
+pub struct InternalNode {
+    pub children: Children,
+}
+
+impl InternalNode {
+    pub fn new<T>(children: T) -> Self
+    where
+        T: IntoIterator<Item = Child>,
+    {
+        Self {
+            children: children.into(),
+        }
+    }
+
+    pub fn hash(&self) -> Hash {
+        merkle_hash(self.children.as_ref(), 0, 16)
     }
 }
 
 #[cw_serde]
 pub struct LeafNode {
+    // TODO: We use HexBinary for now because it serializes better than blake3::Hash.
+    // We should create a wrapper type Hash(blake3::Hash) that is fixed length
+    // and has good serialization
     pub key_hash: HexBinary,
-    // we don't really need to store the raw key, but we do it here for demo purpose
+
+    // We don't really need to store the raw key and value, but we do it here
+    // for demo purpose.
+    // In production, the tree will only store hash(key) and hash(value).
     pub key: String,
     pub value: String,
 }
@@ -144,4 +191,41 @@ impl LeafNode {
             value,
         }
     }
+
+    /// A leaf node's hash is defined as `hash(hash(key) | hash(value))`.
+    // TOOD: not sure if this is more performant than simply `hash(key | value)`
+    // TODO: put this function in a trait?
+    pub fn hash(&self) -> Hash {
+        hash_two(&self.key_hash, &self.value)
+    }
+}
+
+/// We use the bisection method to derive the hash similar to the original Diem
+/// implementation.
+fn merkle_hash(siblings: &[Child], start: usize, end: usize) -> Hash {
+    if siblings.is_empty() {
+        return PLACEHOLDER_HASH.into();
+    }
+
+    if siblings.len() == 1 {
+        // how ugly! we can fix this by introducing the Hash([u8; OUT_LEN])
+        // wrapper type
+        return Hash::from_bytes(siblings[0].hash.as_slice().try_into().unwrap());
+    }
+
+    let mid = (start + end) / 2;
+    let mid_nibble = Nibble::from(mid);
+    let mid_pos = siblings.iter().position(|child| child.index >= mid_nibble).unwrap_or(end);
+
+    let left_half = merkle_hash(&siblings[..mid_pos], start, mid);
+    let right_half = merkle_hash(&siblings[mid_pos..], mid, end);
+
+    hash_two(left_half.as_bytes(), right_half.as_bytes())
+}
+
+fn hash_two(a: impl AsRef<[u8]>, b: impl AsRef<[u8]>) -> Hash {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(a.as_ref());
+    hasher.update(b.as_ref());
+    hasher.finalize()
 }
