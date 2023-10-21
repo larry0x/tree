@@ -122,12 +122,6 @@ impl Children {
             .find(|child| child.index == index)
     }
 
-    pub fn get_mut(&mut self, index: Nibble) -> Option<&mut Child> {
-        self.0
-            .iter_mut()
-            .find(|child| child.index == index)
-    }
-
     pub fn insert(&mut self, new_child: Child) {
         for (pos, child) in self.0.iter().enumerate() {
             if child.index == new_child.index {
