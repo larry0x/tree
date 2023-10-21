@@ -127,7 +127,7 @@ pub fn nodes(
     store: &dyn Storage,
     start_after: Option<&NodeKey>,
     limit: Option<u32>,
-) -> StdResult<Vec<NodeResponse>> {
+) -> Result<Vec<NodeResponse>> {
     let start = start_after.map(Bound::exclusive);
     let limit = limit.unwrap_or(DEFAULT_LIMIT) as usize;
 
