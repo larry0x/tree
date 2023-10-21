@@ -13,8 +13,8 @@ use {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, JsonSchema)]
 pub struct NibblePath {
-    pub(super) num_nibbles: usize,
-    pub(super) bytes: Vec<u8>,
+    pub num_nibbles: usize,
+    pub bytes: Vec<u8>,
 }
 
 impl NibblePath {
@@ -225,5 +225,9 @@ impl<'a> NibbleIterator<'a> {
 
     pub fn remaining_nibbles(&self) -> NibbleIterator<'a> {
         Self::new(self.nibble_path, self.pos.start, self.pos.end)
+    }
+
+    pub fn nibble_path(&self) -> NibblePath {
+        self.visited_nibbles().chain(self.remaining_nibbles()).collect()
     }
 }

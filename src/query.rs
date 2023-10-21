@@ -66,7 +66,13 @@ fn get_value_at(
 
             get_value_at(store, child_node_key, nibble_iter)
         },
-        Node::Leaf(leaf_node) => Ok(Some(leaf_node.value)),
+        Node::Leaf(leaf_node) => {
+            if leaf_node.key_hash == nibble_iter.nibble_path().bytes {
+                return Ok(Some(leaf_node.value))
+            }
+
+            Ok(None)
+        },
     }
 }
 

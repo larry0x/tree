@@ -61,17 +61,6 @@ fn main() {
     println!("------------------------------------------------------------------");
     print_orphans(&store);
 
-    println!("\nKEY-VALUE PAIRS:");
-    println!("------------------------------------------------------------------");
-    print_value_of(&store, "foo");
-    print_value_of(&store, "fuzz");
-    print_value_of(&store, "pumpkin");
-    print_value_of(&store, "donald");
-    print_value_of(&store, "joe");
-    print_value_of(&store, "jake");
-    print_value_of(&store, "satoshi");
-    print_value_of(&store, "larry"); // should be None
-
     // let's try pruning orphaned nodes
     println!("\n********************* pruning orphaned nodes *********************");
     execute::prune(&mut store, None).unwrap();
@@ -83,4 +72,15 @@ fn main() {
     println!("\nORPHANS AFTER PRUNING:");
     println!("------------------------------------------------------------------");
     print_orphans(&store);
+
+    println!("\nKEY-VALUE PAIRS:");
+    println!("------------------------------------------------------------------");
+    print_value_of(&store, "foo");
+    print_value_of(&store, "fuzz");
+    print_value_of(&store, "pumpkin");
+    print_value_of(&store, "donald");
+    print_value_of(&store, "joe");
+    print_value_of(&store, "jake");
+    print_value_of(&store, "satoshi");
+    print_value_of(&store, "larry"); // should be None
 }
