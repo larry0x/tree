@@ -96,7 +96,7 @@ fn insert_at_internal(
         },
     };
 
-    current_node.children.set(Child {
+    current_node.children.insert(Child {
         index: child_index,
         version,
         hash: child.hash(),

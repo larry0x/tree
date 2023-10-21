@@ -3,7 +3,7 @@ use {
     cosmwasm_schema::cw_serde,
     cosmwasm_std::{ensure, StdError, StdResult},
     cw_storage_plus::{Key, KeyDeserialize, PrimaryKey},
-    std::{any::type_name, mem},
+    std::any::type_name,
 };
 
 const PLACEHOLDER_HASH: [u8; blake3::OUT_LEN] = [0; blake3::OUT_LEN];
@@ -87,7 +87,7 @@ impl Node {
 }
 
 #[cw_serde]
-#[derive(Eq, PartialOrd, Ord)]
+#[derive(Eq)]
 pub struct Child {
     pub index: Nibble,
     pub version: u64,
@@ -128,15 +128,20 @@ impl Children {
             .find(|child| child.index == index)
     }
 
-    pub fn set(&mut self, child: Child) {
-        if let Some(existing_child) = self.get_mut(child.index) {
-            // this way we put `child` into the internal node without cloning
-            // its value which is efficient
-            let _ = mem::replace(existing_child, child);
-        } else {
-            self.0.push(child);
-            self.0.sort();
+    pub fn insert(&mut self, new_child: Child) {
+        for (pos, child) in self.0.iter().enumerate() {
+            if child.index == new_child.index {
+                self.0[pos] = new_child;
+                return;
+            }
+
+            if child.index > new_child.index {
+                self.0.insert(pos, new_child);
+                return;
+            }
         }
+
+        self.0.push(new_child);
     }
 }
 
