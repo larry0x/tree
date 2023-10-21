@@ -262,6 +262,12 @@ fn insert_at_leaf(
     Ok((new_node_key, new_node))
 }
 
+pub fn delete(_store: &mut dyn Storage, _key: String) -> Result<Response> {
+    // TODO!!
+
+    Ok(Response::new())
+}
+
 pub fn prune(store: &mut dyn Storage, up_to_version: Option<u64>) -> Result<Response> {
     const BATCH_SIZE: usize = 10;
 

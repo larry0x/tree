@@ -21,8 +21,8 @@ pub fn execute(deps: DepsMut, _: Env, _: MessageInfo, msg: ExecuteMsg) -> Result
             value,
         } => execute::insert(deps.storage, key, value),
         ExecuteMsg::Delete {
-            key: _,
-        } => todo!(),
+            key,
+        } => execute::delete(deps.storage, key),
         ExecuteMsg::Prune {
             up_to_version,
         } => execute::prune(deps.storage, up_to_version),
