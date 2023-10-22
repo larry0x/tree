@@ -116,6 +116,15 @@ impl From<Hash> for NibblePath {
     }
 }
 
+impl From<Vec<u8>> for NibblePath {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self {
+            num_nibbles: bytes.len() * 2,
+            bytes,
+        }
+    }
+}
+
 impl Serialize for NibblePath {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

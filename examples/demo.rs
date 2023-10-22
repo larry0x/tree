@@ -1,6 +1,6 @@
 use {
     cosmwasm_std::{testing::MockStorage, Storage},
-    cw_jellyfish_merkle::{error::Error, execute, query},
+    cw_jellyfish_merkle::{execute, query},
     serde::ser::Serialize,
 };
 
@@ -49,6 +49,8 @@ fn main() {
     insert(&mut store, "jake", "shepherd");
     insert(&mut store, "satoshi", "nakamoto");
 
+    execute::prune(&mut store, None).unwrap();
+
     println!("ROOT:");
     println!("------------------------------------------------------------------");
     print_root(&store, None);
@@ -58,18 +60,6 @@ fn main() {
     print_nodes(&store);
 
     println!("\nORPHANS:");
-    println!("------------------------------------------------------------------");
-    print_orphans(&store);
-
-    // let's try pruning orphaned nodes
-    println!("\n********************* pruning orphaned nodes *********************");
-    execute::prune(&mut store, None).unwrap();
-
-    println!("\nNODES AFTER PRUNING:");
-    println!("------------------------------------------------------------------");
-    print_nodes(&store);
-
-    println!("\nORPHANS AFTER PRUNING:");
     println!("------------------------------------------------------------------");
     print_orphans(&store);
 
@@ -83,20 +73,4 @@ fn main() {
     print_value_of(&store, "jake", None);
     print_value_of(&store, "satoshi", None);
     print_value_of(&store, "larry", None); // should be None
-
-    // now let's try mutating some values and historical queries
-    insert(&mut store, "donald", "duck");
-
-    println!("\nHISTORICAL QUERIES:");
-    println!("------------------------------------------------------------------");
-    println!("at version 7:");
-    print_value_of(&store, "donald", Some(7)); // should be trump
-    println!("at version 8:");
-    print_value_of(&store, "donald", Some(8)); // should be duck
-
-    // now we prune orphaned nodes and query at an old version again
-    // this should panic!
-    execute::prune(&mut store, None).unwrap();
-    let result = query::get(&store, "donald".into(), Some(7));
-    assert_eq!(result, Err(Error::RootNodeNotFound { version: 7 }));
 }

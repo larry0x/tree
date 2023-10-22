@@ -19,7 +19,11 @@ pub fn insert(store: &mut dyn Storage, key: String, value: String) -> Result<Res
     let version = increment_version(store)?;
 
     let key_hash = hash(key.as_bytes());
-    let nibble_path = NibblePath::from(key_hash.clone());
+    // let nibble_path = NibblePath::from(key_hash.clone());
+    let nibble_path = NibblePath::from(key.as_bytes().to_vec());
+
+    let nibbles = nibble_path.clone().nibbles().map(|nibble| format!("{nibble:?}")).collect::<Vec<_>>().join("");
+    dbg!(nibbles);
 
     let new_leaf_node = LeafNode::new(key_hash, key.clone(), value.clone());
 
@@ -182,7 +186,7 @@ fn insert_at_leaf(
     // The cursor starts at location ^a and stops at ^b when visited_nibbles
     // runs out.
     let mut visited_nibbles = nibble_iter.visited_nibbles();
-    let existing_leaf_nibble_path = NibblePath::from(current_node.key_hash.clone());
+    let existing_leaf_nibble_path = NibblePath::from(current_node.key.clone().as_bytes().to_vec());
     let mut existing_leaf_nibbles = existing_leaf_nibble_path.nibbles();
     skip_common_prefix(&mut visited_nibbles, &mut existing_leaf_nibbles);
 
