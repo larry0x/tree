@@ -224,7 +224,7 @@ fn insert_at_leaf(
     let (_, new_leaf_node) = create_leaf_node(store, version, new_leaf_nibble_path, new_leaf_node)?;
 
     // Create the parent of the two new leaves which have indexes 5 and 7
-    let new_internal_node = InternalNode::new([
+    let new_internal_node = InternalNode::new(vec![
         Child {
             index: existing_leaf_index,
             version,
@@ -246,7 +246,7 @@ fn insert_at_leaf(
     // In this example, three indexes are iterated: 4, 3, 2
     for _ in 0..num_common_nibbles_below_internal {
         let index = common_nibble_path.pop().unwrap();
-        let new_internal_node = InternalNode::new([Child {
+        let new_internal_node = InternalNode::new(vec![Child {
             index,
             version,
             hash: new_node.hash(),

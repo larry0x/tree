@@ -6,7 +6,7 @@ mod nibble_path;
 mod node;
 
 pub use {
-    hash::{hash, hash_two, Hash, HASH_LEN},
+    hash::{Hash, HASH_LEN},
     nibble::Nibble,
     nibble_path::{NibbleIterator, NibblePath},
     node::{Child, InternalNode, LeafNode, Node, NodeKey},

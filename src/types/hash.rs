@@ -9,19 +9,6 @@ use {
 
 pub const HASH_LEN: usize = blake3::OUT_LEN;
 
-pub fn hash(data: impl AsRef<[u8]>) -> Hash {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(data.as_ref());
-    hasher.finalize().into()
-}
-
-pub fn hash_two(a: impl AsRef<[u8]>, b: impl AsRef<[u8]>) -> Hash {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(a.as_ref());
-    hasher.update(b.as_ref());
-    hasher.finalize().into()
-}
-
 /// The `blake3::Hash` type doesn't implement JsonSchema and doesn't have a good
 /// serialization method. We replace it with this type.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, JsonSchema)]
@@ -48,6 +35,10 @@ impl AsRef<[u8]> for Hash {
 impl Hash {
     pub fn into_bytes(self) -> [u8; HASH_LEN] {
         self.0
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
     }
 }
 

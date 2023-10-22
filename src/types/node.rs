@@ -1,12 +1,11 @@
 use {
-    crate::types::{hash_two, Hash, Nibble, NibblePath},
+    crate::types::{Hash, Nibble, NibblePath},
+    blake3::{hash, Hasher},
     cosmwasm_schema::cw_serde,
     cosmwasm_std::{ensure, StdError, StdResult},
     cw_storage_plus::{Key, KeyDeserialize, PrimaryKey},
     std::any::type_name,
 };
-
-const PLACEHOLDER_HASH: [u8; blake3::OUT_LEN] = [0; blake3::OUT_LEN];
 
 #[cw_serde]
 #[derive(Eq, Hash)]
@@ -70,7 +69,7 @@ pub enum Node {
 }
 
 impl Node {
-    pub fn new_internal(children: impl IntoIterator<Item = Child>) -> Self {
+    pub fn new_internal(children: Vec<Child>) -> Self {
         Self::Internal(InternalNode::new(children))
     }
 
@@ -100,18 +99,24 @@ pub struct Child {
 #[cw_serde]
 pub struct Children(Vec<Child>);
 
-impl<T> From<T> for Children
-where
-    T: IntoIterator<Item = Child>,
-{
-    fn from(value: T) -> Self {
-        Self(value.into_iter().collect())
+impl From<Vec<Child>> for Children {
+    fn from(vec: Vec<Child>) -> Self {
+        Self(vec)
     }
 }
 
 impl AsRef<[Child]> for Children {
     fn as_ref(&self) -> &[Child] {
         self.0.as_slice()
+    }
+}
+
+impl<'a> IntoIterator for &'a Children {
+    type Item = &'a Child;
+    type IntoIter = std::slice::Iter<'a, Child>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.as_slice().into_iter()
     }
 }
 
@@ -145,37 +150,20 @@ pub struct InternalNode {
 }
 
 impl InternalNode {
-    pub fn new<T>(children: T) -> Self
-    where
-        T: IntoIterator<Item = Child>,
-    {
+    pub fn new(children: Vec<Child>) -> Self {
         Self {
             children: children.into(),
         }
     }
 
     pub fn hash(&self) -> Hash {
-        merkle_hash(self.children.as_ref(), 0, 16)
+        let mut hasher = Hasher::new();
+        for child in &self.children {
+            hasher.update(&[child.index.byte()]);
+            hasher.update(child.hash.as_bytes());
+        }
+        hasher.finalize().into()
     }
-}
-
-fn merkle_hash(siblings: &[Child], start: usize, end: usize) -> Hash {
-    if siblings.is_empty() {
-        return PLACEHOLDER_HASH.into();
-    }
-
-    if siblings.len() == 1 {
-        return siblings[0].hash.clone();
-    }
-
-    let mid = (start + end) / 2;
-    let mid_nibble = Nibble::from(mid);
-    let mid_pos = siblings.iter().position(|child| child.index >= mid_nibble).unwrap_or(end);
-
-    let left_half = merkle_hash(&siblings[..mid_pos], start, mid);
-    let right_half = merkle_hash(&siblings[mid_pos..], mid, end);
-
-    hash_two(left_half, right_half)
 }
 
 #[cw_serde]
@@ -192,8 +180,10 @@ impl LeafNode {
         }
     }
 
-    /// A leaf node's hash is defined as `hash(hash(key) | hash(value))`
     pub fn hash(&self) -> Hash {
-        hash_two(&self.key, &self.value)
+        let mut hasher = Hasher::new();
+        hasher.update(hash(self.key.as_bytes()).as_bytes());
+        hasher.update(hash(self.value.as_bytes()).as_bytes());
+        hasher.finalize().into()
     }
 }
