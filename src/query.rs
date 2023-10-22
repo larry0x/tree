@@ -3,7 +3,7 @@ use {
         error::{Error, Result},
         msg::{GetResponse, NodeResponse, OrphanResponse, RootResponse},
         state::{LAST_COMMITTED_VERSION, NODES, ORPHANS},
-        types::{hash, NibbleIterator, NibblePath, Node, NodeKey},
+        types::{NibbleIterator, NibblePath, Node, NodeKey},
     },
     cosmwasm_std::{Order, StdResult, Storage},
     cw_storage_plus::Bound,
@@ -42,9 +42,7 @@ pub fn root(store: &dyn Storage, version: Option<u64>) -> Result<RootResponse> {
 pub fn get(store: &dyn Storage, key: String, version: Option<u64>) -> Result<GetResponse> {
     let version = unwrap_version(store, version)?;
     let node_key = NodeKey::root(version);
-
-    let key_hash = hash(key.as_bytes());
-    let nibble_path = NibblePath::from(key_hash);
+    let nibble_path = NibblePath::from(key.as_bytes().to_vec());
 
     Ok(GetResponse {
         key,
@@ -106,7 +104,7 @@ fn get_value_at(
         },
         Node::Leaf(leaf_node) => {
             // TODO: impl PartialEq to prettify this syntax
-            if leaf_node.key_hash.into_bytes().as_ref() == nibble_iter.nibble_path().bytes {
+            if leaf_node.key.into_bytes().as_ref() == nibble_iter.nibble_path().bytes {
                 return Ok(Some(leaf_node.value))
             }
 

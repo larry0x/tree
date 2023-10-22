@@ -2,7 +2,7 @@ use {
     crate::{
         error::{Error, Result},
         state::{LAST_COMMITTED_VERSION, NODES, ORPHANS},
-        types::{hash, Child, InternalNode, LeafNode, NibbleIterator, NibblePath, Node, NodeKey},
+        types::{Child, InternalNode, LeafNode, NibbleIterator, NibblePath, Node, NodeKey},
     },
     cosmwasm_std::{ensure, Order, Response, StdResult, Storage},
     cw_storage_plus::PrefixBound,
@@ -17,15 +17,8 @@ pub fn init(store: &mut dyn Storage) -> Result<Response> {
 
 pub fn insert(store: &mut dyn Storage, key: String, value: String) -> Result<Response> {
     let version = increment_version(store)?;
-
-    let key_hash = hash(key.as_bytes());
-    // let nibble_path = NibblePath::from(key_hash.clone());
     let nibble_path = NibblePath::from(key.as_bytes().to_vec());
-
-    let nibbles = nibble_path.clone().nibbles().map(|nibble| format!("{nibble:?}")).collect::<Vec<_>>().join("");
-    dbg!(nibbles);
-
-    let new_leaf_node = LeafNode::new(key_hash, key.clone(), value.clone());
+    let new_leaf_node = LeafNode::new(key.clone(), value.clone());
 
     insert_at(
         store,
@@ -127,7 +120,7 @@ fn insert_at_leaf(
     // new leaf node:
     // - if the values are also the same, then no need to do anything
     // - if the values aren't the same, we create a new leaf node and return
-    if current_node.key_hash == new_leaf_node.key_hash {
+    if current_node.key == new_leaf_node.key {
         return if current_node.value == new_leaf_node.value {
             Ok((current_node_key, Node::Leaf(current_node)))
         } else {

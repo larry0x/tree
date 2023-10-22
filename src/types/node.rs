@@ -74,8 +74,8 @@ impl Node {
         Self::Internal(InternalNode::new(children))
     }
 
-    pub fn new_leaf(key_hash: Hash, key: String, value: String) -> Self {
-        Self::Leaf(LeafNode::new(key_hash, key, value))
+    pub fn new_leaf(key: String, value: String) -> Self {
+        Self::Leaf(LeafNode::new(key, value))
     }
 
     pub fn hash(&self) -> Hash {
@@ -180,15 +180,13 @@ fn merkle_hash(siblings: &[Child], start: usize, end: usize) -> Hash {
 
 #[cw_serde]
 pub struct LeafNode {
-    pub key_hash: Hash,
     pub key: String,
     pub value: String,
 }
 
 impl LeafNode {
-    pub fn new(key_hash: Hash, key: String, value: String) -> Self {
+    pub fn new(key: String, value: String) -> Self {
         Self {
-            key_hash,
             key,
             value,
         }
@@ -196,6 +194,6 @@ impl LeafNode {
 
     /// A leaf node's hash is defined as `hash(hash(key) | hash(value))`
     pub fn hash(&self) -> Hash {
-        hash_two(&self.key_hash, &self.value)
+        hash_two(&self.key, &self.value)
     }
 }
