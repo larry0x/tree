@@ -77,8 +77,8 @@ fn get_value_at(
                 },
                 Ordering::Greater => {
                     Err(Error::VersionNewerThanLatest {
-                        latest_version,
-                        query_version: current_node_key.version,
+                        latest: latest_version,
+                        querying: current_node_key.version,
                     })
                 },
             };

@@ -5,10 +5,10 @@ pub enum Error {
     #[error(transparent)]
     Std(#[from] cosmwasm_std::StdError),
 
-    #[error("cannot query at version {query_version} which is newer than the latest ({latest_version})")]
+    #[error("cannot query at version {querying} which is newer than the latest ({latest})")]
     VersionNewerThanLatest {
-        query_version: u64,
-        latest_version: u64,
+        latest: u64,
+        querying: u64,
     },
 
     #[error("root node of version {version} not found, probably pruned")]
