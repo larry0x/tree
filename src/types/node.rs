@@ -32,12 +32,11 @@ impl<'a> PrimaryKey<'a> for &'a NodeKey {
     fn key(&self) -> Vec<Key> {
         let mut key = vec![];
         key.extend(self.version.to_be_bytes());
-        // in practice, there can be max 64 nibbles, so its safe to cast it to a single byte
-        // length of BLAKE3 hash in bits: 256
-        // bits in a nibble: 4
-        // max nibble path length: 256 / 4 = 64
-        // u8::MAX = 255
-        key.push(self.nibble_path.num_nibbles as u8);
+        // TODO: we should set a limit to nibble_path length so that num_nibbles
+        // is always smaller than u16::MAX = 65535
+        // this means keys must be no longer than 32767 bytes which should be
+        // more than enough
+        key.extend((self.nibble_path.num_nibbles as u16).to_be_bytes());
         key.extend(self.nibble_path.bytes.as_slice());
         vec![Key::Owned(key)]
     }
@@ -191,7 +190,7 @@ impl LeafNode {
     ///
     /// hash(len(key) || key || value)
     ///
-    /// where || means byte concatenation, and len() returns a 32-bit unsigned
+    /// where || means byte concatenation, and len() returns a 16-bit unsigned
     /// integer in big endian encoding.
     ///
     /// The length prefix is necessary, because otherwise we won't be able to
@@ -203,7 +202,10 @@ impl LeafNode {
     /// | `b"foob"` | `b"ar"`  |
     pub fn hash(&self) -> Hash {
         let mut hasher = Hasher::new();
-        hasher.update((self.key.as_bytes().len() as u32).to_be_bytes().as_slice());
+        // we cast the key length to u16 or in other words 2 bytes
+        // this means keys can't be longer than 32767 bytes which should be more
+        // than enough
+        hasher.update((self.key.as_bytes().len() as u16).to_be_bytes().as_slice());
         hasher.update(self.key.as_bytes());
         hasher.update(self.value.as_bytes());
         hasher.finalize().into()
