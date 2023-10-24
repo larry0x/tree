@@ -1,6 +1,6 @@
 use {
     crate::types::{Hash, Nibble, NibblePath},
-    blake3::{hash, Hasher},
+    blake3::Hasher,
     cosmwasm_schema::cw_serde,
     cosmwasm_std::{ensure, StdError, StdResult},
     cw_storage_plus::{Key, KeyDeserialize, PrimaryKey},
@@ -156,6 +156,13 @@ impl InternalNode {
         }
     }
 
+    // We define the hash of an internal node as
+    //
+    // hash(childA.index || childA.hash || ... || childZ.index || childZ.hash)
+    //
+    // where || means byte concatenation, and child{A..Z} are children that
+    // exist, in ascending order. That is, non-existing children are not part
+    // of the preimage.
     pub fn hash(&self) -> Hash {
         let mut hasher = Hasher::new();
         for child in &self.children {
@@ -180,10 +187,25 @@ impl LeafNode {
         }
     }
 
+    /// We define the hash of a leaf node as:
+    ///
+    /// hash(len(key) || key || value)
+    ///
+    /// where || means byte concatenation, and len() returns a 32-bit unsigned
+    /// integer in big endian encoding.
+    ///
+    /// The length prefix is necessary, because otherwise we won't be able to
+    /// differentiate, for example, these two:
+    ///
+    /// | key       | value    |
+    /// | --------- | -------- |
+    /// | `b"foo"`  | `b"bar"` |
+    /// | `b"foob"` | `b"ar"`  |
     pub fn hash(&self) -> Hash {
         let mut hasher = Hasher::new();
-        hasher.update(hash(self.key.as_bytes()).as_bytes());
-        hasher.update(hash(self.value.as_bytes()).as_bytes());
+        hasher.update((self.key.as_bytes().len() as u32).to_be_bytes().as_slice());
+        hasher.update(self.key.as_bytes());
+        hasher.update(self.value.as_bytes());
         hasher.finalize().into()
     }
 }
