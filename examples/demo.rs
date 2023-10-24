@@ -24,7 +24,7 @@ fn print_orphans(store: &dyn Storage) {
 }
 
 fn print_value_of(store: &dyn Storage, key: &str, version: Option<u64>) {
-    let res = query::get(store, key.into(), version).unwrap();
+    let res = query::get(store, key.into(), false, version).unwrap();
     print_json_pretty(&res)
 }
 

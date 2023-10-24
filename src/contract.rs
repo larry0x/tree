@@ -37,8 +37,9 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary> {
         } => to_binary(&query::root(deps.storage, version)?),
         QueryMsg::Get {
             key,
+            prove,
             version,
-        } => to_binary(&query::get(deps.storage, key, version)?),
+        } => to_binary(&query::get(deps.storage, key, prove, version)?),
         QueryMsg::Node {
             node_key,
         } => to_binary(&query::node(deps.storage, node_key)?),

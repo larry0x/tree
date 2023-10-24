@@ -39,7 +39,12 @@ pub fn root(store: &dyn Storage, version: Option<u64>) -> Result<RootResponse> {
     })
 }
 
-pub fn get(store: &dyn Storage, key: String, version: Option<u64>) -> Result<GetResponse> {
+pub fn get(
+    store: &dyn Storage,
+    key: String,
+    prove: bool,
+    version: Option<u64>,
+) -> Result<GetResponse> {
     let version = unwrap_version(store, version)?;
     let node_key = NodeKey::root(version);
     let nibble_path = NibblePath::from(key.as_bytes().to_vec());
@@ -47,6 +52,7 @@ pub fn get(store: &dyn Storage, key: String, version: Option<u64>) -> Result<Get
     Ok(GetResponse {
         key,
         value: get_value_at(store, node_key, &mut nibble_path.nibbles())?,
+        proof: None, // TODO
     })
 }
 

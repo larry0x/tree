@@ -1,5 +1,5 @@
 use {
-    crate::types::{Hash, Node, NodeKey},
+    crate::types::{Hash, Node, NodeKey, Proof},
     cosmwasm_schema::{cw_serde, QueryResponses},
     cosmwasm_std::Empty,
 };
@@ -34,7 +34,7 @@ pub enum QueryMsg {
     /// Query the root node at a specific version
     #[returns(u64)]
     Root {
-        // default to latest version if not provided
+        /// If not specified, default to the latest version
         version: Option<u64>,
     },
 
@@ -42,7 +42,9 @@ pub enum QueryMsg {
     #[returns(GetResponse)]
     Get {
         key: String,
-        // default to latest version if not provided
+        /// Whether to request merkle proof
+        prove: bool,
+        /// If not specified, default to the latest version
         version: Option<u64>,
     },
 
@@ -77,9 +79,10 @@ pub struct RootResponse {
 #[cw_serde]
 pub struct GetResponse {
     pub key: String,
-    // None if not found
+    /// None if not found
     pub value: Option<String>,
-    // TODO: add ICS23 proof
+    /// None if proof is not requested
+    pub proof: Option<Proof>,
 }
 
 #[cw_serde]
