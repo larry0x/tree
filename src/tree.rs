@@ -136,9 +136,7 @@ where
                 };
                 self.insert_at(version, child_node_key, nibble_iter, new_leaf_node)?
             },
-            None => {
-                self.create_leaf_node(version, child_nibble_path, new_leaf_node)?
-            },
+            None => self.create_leaf_node(version, child_nibble_path, new_leaf_node)?,
         };
 
         current_node.children.insert(Child {
@@ -261,12 +259,20 @@ where
         // In this example, existing_leaf_index = 5
         let existing_leaf_index = existing_leaf_nibbles_below_internal.next().unwrap();
         let existing_leaf_nibble_path = common_nibble_path.child(existing_leaf_index);
-        let (_, existing_leaf_node) = self.create_leaf_node(version, existing_leaf_nibble_path, current_node)?;
+        let (_, existing_leaf_node) = self.create_leaf_node(
+            version,
+            existing_leaf_nibble_path,
+            current_node,
+        )?;
 
         // In this example, new_leaf_index = 7
         let new_leaf_index = nibble_iter.next().unwrap();
         let new_leaf_nibble_path = common_nibble_path.child(new_leaf_index);
-        let (_, new_leaf_node) = self.create_leaf_node(version, new_leaf_nibble_path, new_leaf_node)?;
+        let (_, new_leaf_node) = self.create_leaf_node(
+            version,
+            new_leaf_nibble_path,
+            new_leaf_node,
+        )?;
 
         // Create the parent of the two new leaves which have indexes 5 and 7
         let new_internal_node = InternalNode::new(vec![
@@ -363,11 +369,7 @@ where
         Ok((node_key, node))
     }
 
-    fn mark_node_as_orphaned(
-        &mut self,
-        version: u64,
-        node_key: &NodeKey,
-    ) -> StdResult<()> {
+    fn mark_node_as_orphaned(&mut self, version: u64, node_key: &NodeKey) -> StdResult<()> {
         ORPHANS.insert(&mut self.store, (version, node_key))
     }
 
@@ -393,12 +395,7 @@ where
         })
     }
 
-    pub fn get(
-        &self,
-        key: String,
-        _prove: bool,
-        version: Option<u64>,
-    ) -> Result<GetResponse> {
+    pub fn get(&self, key: String, _prove: bool, version: Option<u64>) -> Result<GetResponse> {
         let version = unwrap_version(&self.store, version)?;
         let node_key = NodeKey::root(version);
         let nibble_path = NibblePath::from(key.as_bytes().to_vec());
@@ -465,7 +462,7 @@ where
             Node::Leaf(leaf_node) => {
                 // TODO: impl PartialEq to prettify this syntax
                 if leaf_node.key.into_bytes().as_ref() == nibble_iter.nibble_path().bytes {
-                    return Ok(Some(leaf_node.value))
+                    return Ok(Some(leaf_node.value));
                 }
 
                 Ok(None)
