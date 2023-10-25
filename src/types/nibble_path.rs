@@ -178,8 +178,8 @@ impl KeyDeserialize for NibblePath {
             StdError::parse_err(type_name::<Self::Output>(), "raw key must have at least 1 byte")
         );
 
-        let num_nibbles = value[0] as usize;
-        let bytes = value[1..].to_vec();
+        let num_nibbles = u16::from_be_bytes(value[..2].try_into().unwrap()) as usize;
+        let bytes = value[2..].to_vec();
 
         ensure_eq!(
             bytes.len(),

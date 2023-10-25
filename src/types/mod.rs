@@ -11,5 +11,5 @@ pub use {
     nibble::Nibble,
     nibble_path::{NibbleIterator, NibblePath},
     node::{Child, InternalNode, LeafNode, Node, NodeKey},
-    proof::Proof,
+    proof::{Proof, Sibling},
 };

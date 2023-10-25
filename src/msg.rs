@@ -89,6 +89,7 @@ pub struct GetResponse {
 pub struct NodeResponse {
     pub node_key: NodeKey,
     pub node: Node,
+    pub hash: Hash,
 }
 
 #[cw_serde]

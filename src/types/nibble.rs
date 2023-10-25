@@ -7,12 +7,24 @@ use {
     std::fmt,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, JsonSchema)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, JsonSchema)]
 pub struct Nibble(u8);
 
 impl Nibble {
     pub fn byte(self) -> u8 {
         self.0
+    }
+}
+
+impl fmt::Display for Nibble {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:x}", self.0)
+    }
+}
+
+impl fmt::Debug for Nibble {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Nibble({:x})", self.0)
     }
 }
 

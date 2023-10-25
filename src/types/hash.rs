@@ -4,15 +4,27 @@ use {
         de::{self, Deserialize, Deserializer, Visitor},
         ser::{Serialize, Serializer},
     },
-    std::fmt,
+    std::{array::TryFromSliceError, fmt},
 };
 
 pub const HASH_LEN: usize = blake3::OUT_LEN;
 
 /// The `blake3::Hash` type doesn't implement JsonSchema and doesn't have a good
 /// serialization method. We replace it with this type.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, JsonSchema)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, JsonSchema)]
 pub struct Hash([u8; HASH_LEN]);
+
+impl fmt::Display for Hash {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
+}
+
+impl fmt::Debug for Hash {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Hash({})", hex::encode(self.0))
+    }
+}
 
 impl From<[u8; HASH_LEN]> for Hash {
     fn from(bytes: [u8; HASH_LEN]) -> Self {
@@ -23,6 +35,14 @@ impl From<[u8; HASH_LEN]> for Hash {
 impl From<blake3::Hash> for Hash {
     fn from(hash: blake3::Hash) -> Self {
         Self(*hash.as_bytes())
+    }
+}
+
+impl TryFrom<&[u8]> for Hash {
+    type Error = TryFromSliceError;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        <[u8; HASH_LEN]>::try_from(bytes).map(Self)
     }
 }
 

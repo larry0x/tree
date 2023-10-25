@@ -124,6 +124,7 @@ pub fn node(store: &dyn Storage, node_key: NodeKey) -> Result<Option<NodeRespons
         .may_load(store, &node_key)?
         .map(|node| NodeResponse {
             node_key,
+            hash: node.hash(),
             node,
         }))
 }
@@ -143,6 +144,7 @@ pub fn nodes(
             let (node_key, node) = item?;
             Ok(NodeResponse {
                 node_key,
+                hash: node.hash(),
                 node,
             })
         })
