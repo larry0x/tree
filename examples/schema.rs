@@ -1,6 +1,6 @@
 use {
     cosmwasm_schema::write_api,
-    cw_jellyfish_merkle::msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
+    tree::msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
 };
 
 fn main() {

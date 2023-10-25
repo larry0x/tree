@@ -225,21 +225,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cw-jellyfish-merkle"
-version = "0.0.0"
-dependencies = [
- "blake3",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "hex",
- "schemars",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
 name = "cw-storage-plus"
 version = "1.1.0"
 source = "git+https://github.com/larry0x/cw-storage-plus.git?rev=c54332a#c54332ae49cbaf3529cf1009f07135750c0261b9"
@@ -694,6 +679,21 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.38",
+]
+
+[[package]]
+name = "tree"
+version = "0.0.0"
+dependencies = [
+ "blake3",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "hex",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

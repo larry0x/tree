@@ -1,7 +1,7 @@
-# cw-jellyfish-merkle
+# tree
 
-Jellyfish Merkle Tree (JMT) implemented as a CosmWasm contract.
+A radix tree that is merklized (can generate membership or non-membership proofs) and archival (nodes are versioned, supporting querying at historial versions).
 
-I created this while to learn how JMT works, because what's a better way to learn how a complex protocol works other than by rebuilding it from scratch...?
+## Acknowledgements
 
-> TODO: add attribution to Diem
+A lot of code are adapted from Diem's [Jellyfish Merkle Tree](https://github.com/diem/diem/tree/latest/storage/jellyfish-merkle) which are open sourced under Apache-2.0.

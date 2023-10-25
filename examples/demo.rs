@@ -1,7 +1,7 @@
 use {
     cosmwasm_std::{testing::MockStorage, Storage},
-    cw_jellyfish_merkle::{execute, query},
     serde::ser::Serialize,
+    tree::{execute, query},
 };
 
 fn insert(store: &mut dyn Storage, key: &str, value: &str) {
