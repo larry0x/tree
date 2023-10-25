@@ -3,6 +3,27 @@ use {
     blake3::Hasher,
 };
 
+#[derive(Debug, thiserror::Error)]
+pub enum VerificationError {
+    #[error("root hash mismatch! provided: {provided}, computed: {computed}")]
+    RootHashMismatch {
+        provided: Hash,
+        computed: Hash,
+    },
+
+    #[error("sibling hash mismatch! provided: {provided}, computed: {computed}")]
+    SiblingHashMismatch {
+        provided: Hash,
+        computed: Hash,
+    },
+
+    #[error("expecting sibling to not exist in non-existent proof but it exists")]
+    SiblingFound,
+
+    #[error("siblings in a step are not sorted by index")]
+    SiblingsUnsorted,
+}
+
 pub fn verify_membership(
     root_hash: &Hash,
     key: &str,
@@ -57,40 +78,18 @@ pub fn verify_membership(
 }
 
 pub fn verify_non_membership(
-    root_hash: &Hash,
-    key: &str,
-    proof: &Proof,
+    _root_hash: &Hash,
+    _key: &str,
+    _proof: &Proof,
 ) -> Result<(), VerificationError> {
     todo!();
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum VerificationError {
-    #[error("root hash mismatch! provided: {provided}, computed: {computed}")]
-    RootHashMismatch {
-        provided: Hash,
-        computed: Hash,
-    },
-
-    #[error("sibling hash mismatch! provided: {provided}, computed: {computed}")]
-    SiblingHashMismatch {
-        provided: Hash,
-        computed: Hash,
-    },
-
-    #[error("expecting sibling to not exist in non-existent proof but it exists")]
-    SiblingFound,
-
-    #[error("siblings in a step are not sorted by index")]
-    SiblingsUnsorted,
 }
 
 #[cfg(test)]
 mod test {
     use {
         crate::{
-            execute::{insert, init},
-            query,
+            tree::Tree,
             types::{Hash, Nibble, Sibling},
             verify::verify_membership,
         },
@@ -101,22 +100,22 @@ mod test {
         hex::decode(hex_str).unwrap().as_slice().try_into().unwrap()
     }
 
-    fn setup_test() -> MockStorage {
-        let mut store = MockStorage::new();
+    fn setup_test() -> Tree<MockStorage> {
+        let mut tree = Tree::new(MockStorage::new());
 
-        init(&mut store).unwrap();
-        insert(&mut store, "foo".into(), "bar".into()).unwrap();
-        insert(&mut store, "fuzz".into(), "buzz".into()).unwrap();
-        insert(&mut store, "pumpkin".into(), "cat".into()).unwrap();
+        tree.initialize().unwrap();
+        tree.insert("foo".into(), "bar".into()).unwrap();
+        tree.insert("fuzz".into(), "buzz".into()).unwrap();
+        tree.insert("pumpkin".into(), "cat".into()).unwrap();
 
-        store
+        tree
     }
 
     /// Let's try proving (foo, bar) is in the tree
     #[test]
     fn verifying_membership() {
-        let store = setup_test();
-        let root = query::root(&store, None).unwrap();
+        let tree = setup_test();
+        let root = tree.root(None).unwrap();
 
         let proof = vec![
             vec![
@@ -153,8 +152,8 @@ mod test {
     /// Let's try proving the key "food" isn't in the tree
     #[test]
     fn verifying_non_membership() {
-        let store = setup_test();
-        let root = query::root(&store, None).unwrap();
+        let tree = setup_test();
+        let _root = tree.root(None).unwrap();
 
         todo!();
     }

@@ -9,14 +9,6 @@ readme       = "README.md"
 repository   = "https://github.com/larry0x/tree"
 publish      = false
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
-[features]
-default    = []
-library    = []
-backtraces = ["cosmwasm-std/backtraces"]
-
 [dependencies]
 blake3          = { version = "1", features = ["serde"] }
 cosmwasm-schema = "1.4"

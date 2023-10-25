@@ -1,30 +1,26 @@
 use {
     cosmwasm_std::{testing::MockStorage, Storage},
     serde::ser::Serialize,
-    tree::{execute, query},
+    tree::Tree,
 };
 
-fn insert(store: &mut dyn Storage, key: &str, value: &str) {
-    execute::insert(store, key.into(), value.into()).unwrap();
-}
-
-fn print_root(store: &dyn Storage, version: Option<u64>) {
-    let res = query::root(store, version).unwrap();
+fn print_root<S: Storage>(tree: &Tree<S>, version: Option<u64>) {
+    let res = tree.root(version).unwrap();
     print_json_pretty(&res);
 }
 
-fn print_nodes(store: &dyn Storage) {
-    let res = query::nodes(store, None, Some(u32::MAX)).unwrap();
+fn print_nodes<S: Storage>(tree: &Tree<S>) {
+    let res = tree.nodes(None, Some(u32::MAX)).unwrap();
     print_json_pretty(&res)
 }
 
-fn print_orphans(store: &dyn Storage) {
-    let res = query::orphans(store, None, Some(u32::MAX)).unwrap();
+fn print_orphans<S: Storage>(tree: &Tree<S>) {
+    let res = tree.orphans(None, Some(u32::MAX)).unwrap();
     print_json_pretty(&res)
 }
 
-fn print_value_of(store: &dyn Storage, key: &str, version: Option<u64>) {
-    let res = query::get(store, key.into(), false, version).unwrap();
+fn print_value_of<S: Storage>(tree: &Tree<S>, key: &str, version: Option<u64>) {
+    let res = tree.get(key.into(), false, version).unwrap();
     print_json_pretty(&res)
 }
 
@@ -37,40 +33,40 @@ where
 }
 
 fn main() {
-    let mut store = MockStorage::new();
+    let mut tree = Tree::new(MockStorage::new());
 
-    execute::init(&mut store).unwrap();
+    tree.initialize().unwrap();
 
-    insert(&mut store, "foo", "bar");
-    insert(&mut store, "fuzz", "buzz");
-    insert(&mut store, "pumpkin", "cat");
-    insert(&mut store, "donald", "trump");
-    insert(&mut store, "joe", "biden");
-    insert(&mut store, "jake", "shepherd");
-    insert(&mut store, "satoshi", "nakamoto");
+    tree.insert("foo".into(), "bar".into()).unwrap();
+    tree.insert("fuzz".into(), "buzz".into()).unwrap();
+    tree.insert("pumpkin".into(), "cat".into()).unwrap();
+    tree.insert("donald".into(), "trump".into()).unwrap();
+    tree.insert("joe".into(), "biden".into()).unwrap();
+    tree.insert("jake".into(), "shepherd".into()).unwrap();
+    tree.insert("satoshi".into(), "nakamoto".into()).unwrap();
 
-    execute::prune(&mut store, None).unwrap();
+    tree.prune(None).unwrap();
 
     println!("ROOT:");
     println!("------------------------------------------------------------------");
-    print_root(&store, None);
+    print_root(&tree, None);
 
     println!("\nNODES:");
     println!("------------------------------------------------------------------");
-    print_nodes(&store);
+    print_nodes(&tree);
 
     println!("\nORPHANS:");
     println!("------------------------------------------------------------------");
-    print_orphans(&store);
+    print_orphans(&tree);
 
     println!("\nKEY-VALUE PAIRS:");
     println!("------------------------------------------------------------------");
-    print_value_of(&store, "foo", None);
-    print_value_of(&store, "fuzz", None);
-    print_value_of(&store, "pumpkin", None);
-    print_value_of(&store, "donald", None);
-    print_value_of(&store, "joe", None);
-    print_value_of(&store, "jake", None);
-    print_value_of(&store, "satoshi", None);
-    print_value_of(&store, "larry", None); // should be None
+    print_value_of(&tree, "foo", None);
+    print_value_of(&tree, "fuzz", None);
+    print_value_of(&tree, "pumpkin", None);
+    print_value_of(&tree, "donald", None);
+    print_value_of(&tree, "joe", None);
+    print_value_of(&tree, "jake", None);
+    print_value_of(&tree, "satoshi", None);
+    print_value_of(&tree, "larry", None); // should be None
 }
