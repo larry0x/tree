@@ -19,9 +19,6 @@ pub enum VerificationError {
 
     #[error("expecting sibling to not exist in non-existent proof but it exists")]
     SiblingFound,
-
-    #[error("siblings in a step are not sorted by index")]
-    SiblingsUnsorted,
 }
 
 pub fn verify_membership(
@@ -40,15 +37,8 @@ pub fn verify_membership(
         let target_index = nibble_path.get_nibble(proof_len - i - 1);
 
         let mut hasher = Hasher::new();
-        let mut last_index = None;
 
         for sibling in siblings {
-            if let Some(index) = last_index {
-                if sibling.index <= index {
-                    return Err(VerificationError::SiblingsUnsorted);
-                }
-            }
-
             if target_index == sibling.index {
                 if hash != sibling.hash {
                     return Err(VerificationError::SiblingHashMismatch {
@@ -60,8 +50,6 @@ pub fn verify_membership(
 
             hasher.update(&[sibling.index.byte()]);
             hasher.update(sibling.hash.as_bytes());
-
-            last_index = Some(sibling.index);
         }
 
         hash = hasher.finalize().into();
