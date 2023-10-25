@@ -527,7 +527,7 @@ where
 /// Advance both iterators if their next nibbles are the same, until either
 /// reaches the end or their next nibbles mismatch. Return the number of matched
 /// nibbles.
-pub(crate) fn skip_common_prefix(x: &mut NibbleIterator, y: &mut NibbleIterator) -> usize {
+fn skip_common_prefix(x: &mut NibbleIterator, y: &mut NibbleIterator) -> usize {
     let mut count = 0;
 
     loop {
