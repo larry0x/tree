@@ -7,6 +7,9 @@ use {
     std::any::type_name,
 };
 
+const INTERNAL_PREFIX: u8 = 0;
+const LEAF_PREFIX:     u8 = 1;
+
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct NodeKey {
@@ -157,13 +160,14 @@ impl InternalNode {
 
     // We define the hash of an internal node as
     //
-    // hash(childA.index || childA.hash || ... || childZ.index || childZ.hash)
+    // hash(internal_prefix || childA.index || childA.hash || ... || childZ.index || childZ.hash)
     //
     // where || means byte concatenation, and child{A..Z} are children that
     // exist, in ascending order. That is, non-existing children are not part
     // of the preimage.
     pub fn hash(&self) -> Hash {
         let mut hasher = Hasher::new();
+        hasher.update(&[INTERNAL_PREFIX]);
         for child in &self.children {
             hasher.update(&[child.index.byte()]);
             hasher.update(child.hash.as_bytes());
@@ -186,11 +190,19 @@ impl LeafNode {
         }
     }
 
+    fn key(&self) -> &[u8] {
+        self.key.as_bytes()
+    }
+
+    fn value(&self) -> &[u8] {
+        self.value.as_bytes()
+    }
+
     /// We define the hash of a leaf node as:
     ///
-    /// hash(len(key) || key || value)
+    /// hash(leaf_prefix || len(key) || key || len(value) || value)
     ///
-    /// where || means byte concatenation, and len() returns a 16-bit unsigned
+    /// where || means byte concatenation, and len() returns a 32-bit unsigned
     /// integer in big endian encoding.
     ///
     /// The length prefix is necessary, because otherwise we won't be able to
@@ -202,12 +214,11 @@ impl LeafNode {
     /// | `b"foob"` | `b"ar"`  |
     pub fn hash(&self) -> Hash {
         let mut hasher = Hasher::new();
-        // we cast the key length to u16 or in other words 2 bytes
-        // this means keys can't be longer than 32767 bytes which should be more
-        // than enough
-        hasher.update((self.key.as_bytes().len() as u16).to_be_bytes().as_slice());
-        hasher.update(self.key.as_bytes());
-        hasher.update(self.value.as_bytes());
+        hasher.update(&[LEAF_PREFIX]);
+        hasher.update((self.key().len() as u32).to_be_bytes().as_slice());
+        hasher.update(self.key());
+        hasher.update((self.value().len() as u32).to_be_bytes().as_slice());
+        hasher.update(self.value());
         hasher.finalize().into()
     }
 }

@@ -40,10 +40,10 @@ fn main() {
     tree.insert("foo".into(), "bar".into()).unwrap();
     tree.insert("fuzz".into(), "buzz".into()).unwrap();
     tree.insert("pumpkin".into(), "cat".into()).unwrap();
-    tree.insert("donald".into(), "trump".into()).unwrap();
-    tree.insert("joe".into(), "biden".into()).unwrap();
-    tree.insert("jake".into(), "shepherd".into()).unwrap();
-    tree.insert("satoshi".into(), "nakamoto".into()).unwrap();
+    // tree.insert("donald".into(), "trump".into()).unwrap();
+    // tree.insert("joe".into(), "biden".into()).unwrap();
+    // tree.insert("jake".into(), "shepherd".into()).unwrap();
+    // tree.insert("satoshi".into(), "nakamoto".into()).unwrap();
 
     tree.prune(None).unwrap();
 
