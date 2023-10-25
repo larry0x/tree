@@ -10,12 +10,12 @@ fn print_root<S: Storage>(tree: &Tree<S>, version: Option<u64>) {
 }
 
 fn print_nodes<S: Storage>(tree: &Tree<S>) {
-    let res = tree.nodes(None, Some(u32::MAX)).unwrap();
+    let res = tree.nodes(None, Some(usize::MAX)).unwrap();
     print_json_pretty(&res)
 }
 
 fn print_orphans<S: Storage>(tree: &Tree<S>) {
-    let res = tree.orphans(None, Some(u32::MAX)).unwrap();
+    let res = tree.orphans(None, Some(usize::MAX)).unwrap();
     print_json_pretty(&res)
 }
 

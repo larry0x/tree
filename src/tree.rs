@@ -14,7 +14,9 @@ use {
 const LAST_COMMITTED_VERSION: Item<u64>            = Item::new("v");
 const NODES:                  Map<&NodeKey, Node>  = Map::new("n");
 const ORPHANS:                Set<(u64, &NodeKey)> = Set::new("o");
-const DEFAULT_LIMIT:          u32                  = 10;
+
+const DEFAULT_QUERY_BATCH_SIZE: usize = 10;
+const PRUNE_BATCH_SIZE:         usize = 10;
 
 #[derive(Debug, PartialEq, thiserror::Error)]
 pub enum TreeError {
@@ -318,14 +320,12 @@ where
     }
 
     pub fn prune(&mut self, up_to_version: Option<u64>) -> Result<Response> {
-        const BATCH_SIZE: usize = 10;
-
         let end = up_to_version.map(PrefixBound::inclusive);
 
         loop {
             let batch = ORPHANS
                 .prefix_range(&mut self.store, None, end.clone(), Order::Ascending)
-                .take(BATCH_SIZE)
+                .take(PRUNE_BATCH_SIZE)
                 .collect::<StdResult<Vec<_>>>()?;
 
             for (stale_since_version, node_key) in &batch {
@@ -333,7 +333,7 @@ where
                 ORPHANS.remove(&mut self.store, (*stale_since_version, node_key));
             }
 
-            if batch.len() < BATCH_SIZE {
+            if batch.len() < PRUNE_BATCH_SIZE {
                 break;
             }
         }
@@ -483,10 +483,10 @@ where
     pub fn nodes(
         &self,
         start_after: Option<&NodeKey>,
-        limit: Option<u32>,
+        limit: Option<usize>,
     ) -> Result<Vec<NodeResponse>> {
         let start = start_after.map(Bound::exclusive);
-        let limit = limit.unwrap_or(DEFAULT_LIMIT) as usize;
+        let limit = limit.unwrap_or(DEFAULT_QUERY_BATCH_SIZE);
 
         NODES
             .range(&self.store, start, None, Order::Ascending)
@@ -505,10 +505,10 @@ where
     pub fn orphans(
         &self,
         start_after: Option<&OrphanResponse>,
-        limit: Option<u32>,
+        limit: Option<usize>,
     ) -> Result<Vec<OrphanResponse>> {
         let start = start_after.map(|o| Bound::exclusive((o.since_version, &o.node_key)));
-        let limit = limit.unwrap_or(DEFAULT_LIMIT) as usize;
+        let limit = limit.unwrap_or(DEFAULT_QUERY_BATCH_SIZE);
 
         ORPHANS
             .items(&self.store, start, None, Order::Ascending)
