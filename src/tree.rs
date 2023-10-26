@@ -58,7 +58,7 @@ where
         current_node_key: NodeKey,
         nibble_iter: &mut NibbleIterator,
         new_leaf_node: LeafNode,
-    ) -> Result<(NodeKey, Node)> {
+    ) -> Result<Node> {
         let Some(current_node) = NODES.may_load(&self.store, &current_node_key)? else {
             // Node is not found. The only case where this is allowed to happen is
             // if the current node is the root, which means the tree is empty.
@@ -96,7 +96,7 @@ where
         version: u64,
         nibble_iter: &mut NibbleIterator,
         new_leaf_node: LeafNode,
-    ) -> Result<(NodeKey, Node)> {
+    ) -> Result<Node> {
         self.mark_node_as_orphaned(version, &current_node_key)?;
 
         let Some(child_index) = nibble_iter.next() else {
@@ -111,7 +111,7 @@ where
         // otherwise, nibble hasn't run out, we need to further go down the tree
         let child_nibble_path = current_node_key.nibble_path.child(child_index);
 
-        let (_, child_node) = match current_node.children.get(child_index) {
+        let child_node = match current_node.children.get(child_index) {
             Some(existing_child) => {
                 let child_node_key = NodeKey {
                     version: existing_child.version,
@@ -140,7 +140,7 @@ where
         version: u64,
         nibble_iter: &mut NibbleIterator,
         new_leaf_node: LeafNode,
-    ) -> Result<(NodeKey, Node)> {
+    ) -> Result<Node> {
         // The current node is necessarily orphaned, so we mark it as such
         self.mark_node_as_orphaned(version, &current_node_key)?;
 
@@ -150,7 +150,7 @@ where
         // - if the values aren't the same, we create a new leaf node and return
         if current_node.key == new_leaf_node.key {
             return if current_node.value == new_leaf_node.value {
-                Ok((current_node_key, Node::Leaf(current_node)))
+                Ok(Node::Leaf(current_node))
             } else {
                 self.create_leaf_node(version, current_node_key.nibble_path, new_leaf_node)
             };
@@ -233,7 +233,7 @@ where
         // First create the new leaf
         let new_leaf_index = nibble_iter.next().unwrap();
         let new_leaf_nibble_path = common_nibble_path.child(new_leaf_index);
-        let (_, new_leaf_node) = self.create_leaf_node(
+        let new_leaf_node = self.create_leaf_node(
             version,
             new_leaf_nibble_path,
             new_leaf_node,
@@ -266,7 +266,7 @@ where
         //
         // In this example, existing_leaf_index = 5
         let existing_leaf_nibble_path = common_nibble_path.child(existing_leaf_index);
-        let (_, existing_leaf_node) = self.create_leaf_node(
+        let existing_leaf_node = self.create_leaf_node(
             version,
             existing_leaf_nibble_path,
             current_node,
@@ -285,7 +285,7 @@ where
                 hash: new_leaf_node.hash(),
             },
         ]);
-        let (mut new_node_key, mut new_node) = self.create_internal_node(
+        let mut new_node = self.create_internal_node(
             version,
             common_nibble_path.clone(),
             new_internal_node,
@@ -299,14 +299,14 @@ where
                 version,
                 hash: new_node.hash(),
             }]);
-            (new_node_key, new_node) = self.create_internal_node(
+            new_node = self.create_internal_node(
                 version,
                 common_nibble_path.clone(),
                 new_internal_node,
             )?;
         }
 
-        Ok((new_node_key, new_node))
+        Ok(new_node)
     }
 
     pub fn delete(&mut self, key: String) -> Result<()> {
@@ -469,7 +469,7 @@ where
             },
         }
 
-        let (_, updated_current_node) = self.create_internal_node(
+        let updated_current_node = self.create_internal_node(
             version,
             current_node_key.nibble_path,
             current_node,
@@ -505,13 +505,13 @@ where
         version: u64,
         nibble_path: NibblePath,
         internal_node: InternalNode,
-    ) -> Result<(NodeKey, Node)> {
+    ) -> Result<Node> {
         let node_key = NodeKey { version, nibble_path };
         let node = Node::Internal(internal_node);
 
         NODES.save(&mut self.store, &node_key, &node)?;
 
-        Ok((node_key, node))
+        Ok(node)
     }
 
     fn create_leaf_node(
@@ -519,13 +519,13 @@ where
         version: u64,
         nibble_path: NibblePath,
         leaf_node: LeafNode,
-    ) -> Result<(NodeKey, Node)> {
+    ) -> Result<Node> {
         let node_key = NodeKey { version, nibble_path };
         let node = Node::Leaf(leaf_node);
 
         NODES.save(&mut self.store, &node_key, &node)?;
 
-        Ok((node_key, node))
+        Ok(node)
     }
 
     fn mark_node_as_orphaned(
