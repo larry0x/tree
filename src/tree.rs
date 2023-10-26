@@ -342,15 +342,13 @@ where
             Node::Internal(internal_node) => {
                 // the child is an internal node: we recursively attempt to
                 // delete under it.
-                let res = self.delete_at_internal(
+                match self.delete_at_internal(
                     child_node_key,
                     internal_node,
                     version,
                     nibble_iter,
                     key,
-                )?;
-
-                match res {
+                )? {
                     DeleteResponse::Replaced { mut leaf_nibble_path, leaf_node, leaf_hash } => {
                         // the child internal node has been deleted and replaced
                         // with a leaf node
