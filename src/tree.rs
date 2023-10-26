@@ -130,7 +130,7 @@ where
         let child_index = nibble_iter.next().unwrap();
         let child_nibble_path = current_node_key.nibble_path.child(child_index);
 
-        let (_, child) = match current_node.children.get(child_index) {
+        let (_, child_node) = match current_node.children.get(child_index) {
             Some(existing_child) => {
                 let child_node_key = NodeKey {
                     version: existing_child.version,
@@ -138,13 +138,16 @@ where
                 };
                 self.insert_at(version, child_node_key, nibble_iter, new_leaf_node)?
             },
-            None => self.create_leaf_node(version, child_nibble_path, new_leaf_node)?,
+            None => {
+                self.create_leaf_node(version, child_nibble_path, new_leaf_node)?
+            },
         };
 
         current_node.children.insert(Child {
             index: child_index,
             version,
-            hash: child.hash(),
+            hash: child_node.hash(),
+            is_leaf: child_node.is_leaf(),
         });
 
         self.create_internal_node(version, current_node_key.nibble_path, current_node)
@@ -282,11 +285,13 @@ where
                 index: existing_leaf_index,
                 version,
                 hash: existing_leaf_node.hash(),
+                is_leaf: true,
             },
             Child {
                 index: new_leaf_index,
                 version,
                 hash: new_leaf_node.hash(),
+                is_leaf: true,
             },
         ]);
         let (mut new_node_key, mut new_node) = self.create_internal_node(
@@ -302,6 +307,7 @@ where
                 index,
                 version,
                 hash: new_node.hash(),
+                is_leaf: false,
             }]);
             (new_node_key, new_node) = self.create_internal_node(
                 version,
@@ -313,10 +319,131 @@ where
         Ok((new_node_key, new_node))
     }
 
-    pub fn delete(&mut self, _key: String) -> Result<Response> {
-        // TODO!!
+    pub fn delete(&mut self, key: String) -> Result<()> {
+        let version = self.increment_version()?;
+        let nibble_path = NibblePath::from(key.as_bytes().to_vec());
 
-        Ok(Response::new())
+        let root_node_key = NodeKey::root(version - 1);
+        let Some(root_node) = NODES.may_load(&self.store, &root_node_key)? else {
+            // tree is empty, no-op
+            return Ok(());
+        };
+
+        match root_node {
+            Node::Internal(internal_node) => {
+                self.delete_at_internal(
+                    root_node_key,
+                    internal_node,
+                    version,
+                    &mut nibble_path.nibbles(),
+                    &key,
+                )?;
+            },
+            Node::Leaf(leaf_node) => {
+                // root node is a leaf node, meaning there is only one KV in the
+                // tree. if this key equals the key we want to delete, then we
+                // simply delete it. otherwise, the key doesn't exist, no op.
+                if leaf_node.key == key {
+                    self.mark_node_as_orphaned(version, &root_node_key)?;
+                }
+            },
+        }
+
+        Ok(())
+    }
+
+    fn delete_at_internal(
+        &mut self,
+        current_node_key: NodeKey,
+        mut current_node: InternalNode,
+        version: u64,
+        nibble_iter: &mut NibbleIterator,
+        key: &str,
+    ) -> Result<DeleteResponse> {
+        let child_index = nibble_iter.next().unwrap();
+        let Some(child) = current_node.children.get_mut(child_index) else {
+            // can't find the child, meaning the key doesn't exist in the tree,
+            // no op.
+            return Ok(DeleteResponse::Unchanged);
+        };
+
+        let child_node_key = NodeKey {
+            version: child.version,
+            nibble_path: current_node_key.nibble_path.child(child_index),
+        };
+        let child_node = NODES.load(&self.store, &child_node_key)?;
+
+        match child_node {
+            Node::Internal(internal_node) => {
+                // the child is an internal node: we recursively attempt to
+                // delete under it.
+                let res = self.delete_at_internal(
+                    child_node_key,
+                    internal_node,
+                    version,
+                    nibble_iter,
+                    key,
+                )?;
+
+                match res {
+                    // the child internal node has been deleted and replaced
+                    // with a leaf node
+                    DeleteResponse::Replaced(new_child) => {
+                        child.version = new_child.version;
+                        child.hash = new_child.hash;
+                        child.is_leaf = new_child.is_leaf; // this is necessarily true
+                    },
+                    // the child internal node is not replaced, but its child
+                    // list has changed, so we need to update the version and
+                    // recompute the hash
+                    DeleteResponse::Updated(updated_child_node) => {
+                        child.version = version;
+                        child.hash = updated_child_node.hash();
+                    },
+                    // no op
+                    DeleteResponse::Unchanged => {
+                        return Ok(DeleteResponse::Unchanged);
+                    },
+                }
+            },
+            Node::Leaf(leaf_node) => {
+                // the child is a leaf node: now we compare if the child's key
+                // matches the key we want to delete.
+                //
+                // note: they are not necessarily the same - the child's key may
+                // be a prefix of the key we want to delete. for example, we
+                // want to delete `food`, but the child is `foo`.
+                //
+                // if the keys don't match, then otherwise, the key doesn't
+                // exist in the tree, no op.
+                if leaf_node.key != key {
+                    return Ok(DeleteResponse::Unchanged);
+                }
+
+                // keys match, delete the leaf
+                self.mark_node_as_orphaned(version, &child_node_key)?;
+                current_node.children.remove(child_index);
+
+                // now the tricky part - if after deleting the leaf, the current
+                // node only has 1 child, and this child is a leaf, then we need
+                // to collapse the path
+                if let Some(other_child) = current_node.children.get_only() {
+                    if other_child.is_leaf {
+                        self.mark_node_as_orphaned(version, &current_node_key)?;
+
+                        return Ok(DeleteResponse::Replaced(other_child.clone()));
+                    }
+                }
+            },
+        }
+
+        let (_, updated_current_node) = self.create_internal_node(
+            version,
+            current_node_key.nibble_path,
+            current_node,
+        )?;
+
+        Ok(DeleteResponse::Updated(updated_current_node))
     }
 
     pub fn prune(&mut self, up_to_version: Option<u64>) -> Result<Response> {
@@ -369,8 +496,12 @@ where
         Ok((node_key, node))
     }
 
-    fn mark_node_as_orphaned(&mut self, version: u64, node_key: &NodeKey) -> StdResult<()> {
-        ORPHANS.insert(&mut self.store, (version, node_key))
+    fn mark_node_as_orphaned(
+        &mut self,
+        orphaned_since_version: u64,
+        node_key: &NodeKey,
+    ) -> StdResult<()> {
+        ORPHANS.insert(&mut self.store, (orphaned_since_version, node_key))
     }
 
     fn increment_version(&mut self) -> StdResult<u64> {
@@ -560,4 +691,17 @@ fn unwrap_version(store: &dyn Storage, version: Option<u64>) -> StdResult<u64> {
     } else {
         LAST_COMMITTED_VERSION.load(store)
     }
+}
+
+/// This is the response data of the `delete_at` private method, describing what
+/// happened to the internal node after performing the deletion.
+enum DeleteResponse {
+    /// The internal node has only 1 child left, and therefore has been deleted
+    /// and replaced by that child (that child also gets a new nibble path).
+    Replaced(Child),
+    /// The internal node has been updated but not replaced, meaning it still
+    /// has at least two children after the deletion. The updated node is returned.
+    Updated(Node),
+    /// Nothing happened. This signals that the hashes don't need to be re-computed.
+    Unchanged,
 }

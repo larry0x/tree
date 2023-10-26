@@ -79,6 +79,13 @@ impl Node {
         Self::Leaf(LeafNode::new(key, value))
     }
 
+    pub fn is_leaf(&self) -> bool {
+        match self {
+            Node::Internal(_) => false,
+            Node::Leaf(_) => true,
+        }
+    }
+
     pub fn hash(&self) -> Hash {
         match self {
             Node::Internal(internal_node) => internal_node.hash(),
@@ -93,6 +100,7 @@ pub struct Child {
     pub index: Nibble,
     pub version: u64,
     pub hash: Hash,
+    pub is_leaf: bool,
 }
 
 // Ideally we want to usd a map type such as BTreeMap. Unfortunately, CosmWasm
@@ -129,6 +137,25 @@ impl Children {
             .find(|child| child.index == index)
     }
 
+    pub fn get_mut(&mut self, index: Nibble) -> Option<&mut Child> {
+        self.0
+            .iter_mut()
+            .find(|child| child.index == index)
+    }
+
+    /// If there is exactly one child, then return a reference to this child.
+    /// If there is more than one children, return None.
+    ///
+    /// Under normal circumstances, this function shouldn't be called when there
+    /// is zero child.
+    pub fn get_only(&self) -> Option<&Child> {
+        if self.0.len() == 1 {
+            return Some(&self.0[0]);
+        }
+
+        None
+    }
+
     pub fn insert(&mut self, new_child: Child) {
         for (pos, child) in self.0.iter().enumerate() {
             if child.index == new_child.index {
@@ -143,6 +170,14 @@ impl Children {
         }
 
         self.0.push(new_child);
+    }
+
+    pub fn remove(&mut self, index: Nibble) {
+        let Some(pos) = self.0.iter().position(|child| child.index == index) else {
+            panic!("child not found with index {index}");
+        };
+
+        self.0.remove(pos);
     }
 }
 
