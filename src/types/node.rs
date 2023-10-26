@@ -4,14 +4,15 @@ use {
     cosmwasm_schema::cw_serde,
     cosmwasm_std::{ensure, StdError, StdResult},
     cw_storage_plus::{Key, KeyDeserialize, PrimaryKey},
-    std::any::type_name,
+    schemars::JsonSchema,
+    serde::{Deserialize, Serialize},
+    std::{any::type_name, fmt},
 };
 
 const INTERNAL_PREFIX: u8 = 0;
 const LEAF_PREFIX:     u8 = 1;
 
-#[cw_serde]
-#[derive(Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash, JsonSchema)]
 pub struct NodeKey {
     pub version: u64,
     pub nibble_path: NibblePath,
@@ -23,6 +24,12 @@ impl NodeKey {
             version,
             nibble_path: NibblePath::empty(),
         }
+    }
+}
+
+impl fmt::Debug for NodeKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "NodeKey{{version={} nibbles=\"{}\"}}", self.version, self.nibble_path.to_hex())
     }
 }
 
@@ -79,13 +86,6 @@ impl Node {
         Self::Leaf(LeafNode::new(key, value))
     }
 
-    pub fn is_leaf(&self) -> bool {
-        match self {
-            Node::Internal(_) => false,
-            Node::Leaf(_) => true,
-        }
-    }
-
     pub fn hash(&self) -> Hash {
         match self {
             Node::Internal(internal_node) => internal_node.hash(),
@@ -100,7 +100,6 @@ pub struct Child {
     pub index: Nibble,
     pub version: u64,
     pub hash: Hash,
-    pub is_leaf: bool,
 }
 
 // Ideally we want to usd a map type such as BTreeMap. Unfortunately, CosmWasm
@@ -131,15 +130,13 @@ impl<'a> IntoIterator for &'a Children {
 }
 
 impl Children {
+    pub fn count(&self) -> usize {
+        self.0.len()
+    }
+
     pub fn get(&self, index: Nibble) -> Option<&Child> {
         self.0
             .iter()
-            .find(|child| child.index == index)
-    }
-
-    pub fn get_mut(&mut self, index: Nibble) -> Option<&mut Child> {
-        self.0
-            .iter_mut()
             .find(|child| child.index == index)
     }
 

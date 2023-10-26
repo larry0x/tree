@@ -11,7 +11,7 @@ use {
     std::{any::type_name, fmt, ops::Range},
 };
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, JsonSchema)]
+#[derive(Clone, PartialEq, Eq, Hash, JsonSchema)]
 pub struct NibblePath {
     pub num_nibbles: usize,
     pub bytes: Vec<u8>,
@@ -94,6 +94,12 @@ impl NibblePath {
             num_nibbles,
             bytes,
         })
+    }
+}
+
+impl fmt::Debug for NibblePath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "NibblePath(\"{}\")", self.to_hex())
     }
 }
 
