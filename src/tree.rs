@@ -59,7 +59,7 @@ where
         nibble_iter: &mut NibbleIterator,
         new_leaf_node: LeafNode,
     ) -> Result<(NodeKey, Node)> {
-        let Some(current_node) = NODES.may_load(&mut self.store, &current_node_key)? else {
+        let Some(current_node) = NODES.may_load(&self.store, &current_node_key)? else {
             // Node is not found. The only case where this is allowed to happen is
             // if the current node is the root, which means the tree is empty.
             ensure!(
@@ -449,7 +449,7 @@ where
 
         loop {
             let batch = ORPHANS
-                .prefix_range(&mut self.store, None, end.clone(), Order::Ascending)
+                .prefix_range(&self.store, None, end.clone(), Order::Ascending)
                 .take(PRUNE_BATCH_SIZE)
                 .collect::<StdResult<Vec<_>>>()?;
 

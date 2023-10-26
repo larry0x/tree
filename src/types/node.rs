@@ -125,7 +125,7 @@ impl<'a> IntoIterator for &'a Children {
     type IntoIter = std::slice::Iter<'a, Child>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.as_slice().into_iter()
+        self.0.as_slice().iter()
     }
 }
 
