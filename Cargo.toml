@@ -25,10 +25,6 @@ cosmwasm-std    = "1.4"
 # https://github.com/CosmWasm/cw-storage-plus/issues/58
 cw-storage-plus = { git = "https://github.com/larry0x/cw-storage-plus.git", rev = "c54332a" }
 hex             = "0.4"
-# This fork of ics23 introduces support for Blake hash fucntions as well as
-# missing implementation for a few lengthOps:
-# https://github.com/cosmos/ics23/pull/212
-ics23           = { git = "https://github.com/larry0x/ics23.git", rev = "164cc34" }
 schemars        = "0.8"
 serde           = { version = "1", default-features = false }
 thiserror       = "1"
