@@ -18,34 +18,6 @@ const ORPHANS:                Set<(u64, &NodeKey)> = Set::new("o");
 const DEFAULT_QUERY_BATCH_SIZE: usize = 10;
 const PRUNE_BATCH_SIZE:         usize = 10;
 
-#[derive(Debug, PartialEq, thiserror::Error)]
-pub enum TreeError {
-    #[error(transparent)]
-    Std(#[from] cosmwasm_std::StdError),
-
-    #[error("cannot query at version {querying} which is newer than the latest ({latest})")]
-    VersionNewerThanLatest {
-        latest: u64,
-        querying: u64,
-    },
-
-    #[error("root node of version {version} not found, probably pruned")]
-    RootNodeNotFound {
-        version: u64,
-    },
-
-    #[error(
-        "tree corrupted! non-root node not found (version: {}, nibble_path: {})",
-        node_key.version,
-        node_key.nibble_path.to_hex(),
-    )]
-    NonRootNodeNotFound {
-        node_key: NodeKey,
-    },
-}
-
-type Result<T> = std::result::Result<T, TreeError>;
-
 pub struct Tree<S> {
     store: S,
 }
@@ -737,3 +709,31 @@ enum DeleteResponse {
     /// Nothing happened. This signals that the hashes don't need to be re-computed.
     Unchanged,
 }
+
+#[derive(Debug, PartialEq, thiserror::Error)]
+pub enum TreeError {
+    #[error(transparent)]
+    Std(#[from] cosmwasm_std::StdError),
+
+    #[error("cannot query at version {querying} which is newer than the latest ({latest})")]
+    VersionNewerThanLatest {
+        latest: u64,
+        querying: u64,
+    },
+
+    #[error("root node of version {version} not found, probably pruned")]
+    RootNodeNotFound {
+        version: u64,
+    },
+
+    #[error(
+        "tree corrupted! non-root node not found (version: {}, nibble_path: {})",
+        node_key.version,
+        node_key.nibble_path.to_hex(),
+    )]
+    NonRootNodeNotFound {
+        node_key: NodeKey,
+    },
+}
+
+type Result<T> = std::result::Result<T, TreeError>;
