@@ -1,5 +1,5 @@
 use {
-    crate::types::NibblePath,
+    crate::types::{Nibble, NibblePath},
     cosmwasm_std::{ensure, StdError, StdResult},
     cw_storage_plus::{Key, KeyDeserialize, PrimaryKey},
     schemars::JsonSchema,
@@ -18,6 +18,13 @@ impl NodeKey {
         Self {
             version,
             nibble_path: NibblePath::empty(),
+        }
+    }
+
+    pub fn child(&self, version: u64, index: Nibble) -> Self {
+        Self {
+            version,
+            nibble_path: self.nibble_path.child(index),
         }
     }
 }

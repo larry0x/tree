@@ -335,10 +335,7 @@ where
             return Ok(DeleteResponse::Unchanged);
         };
 
-        let child_node_key = NodeKey {
-            version: child.version,
-            nibble_path: current_node_key.nibble_path.child(child_index),
-        };
+        let child_node_key = current_node_key.child(version, child_index);
         let child_node = NODES.load(&self.store, &child_node_key)?;
 
         match child_node {
@@ -415,10 +412,7 @@ where
                 // node only has 1 child, and this child is a leaf, then we need
                 // to collapse the path
                 if let Some(other_child) = current_node.children.get_only() {
-                    let other_child_node_key = NodeKey {
-                        version: other_child.version,
-                        nibble_path: current_node_key.nibble_path.child(other_child.index),
-                    };
+                    let other_child_node_key = current_node_key.child(version, other_child.index);
                     let other_child_node = NODES.load(&self.store, &other_child_node_key)?;
 
                     if let Node::Leaf(leaf_node) = other_child_node {
@@ -577,14 +571,12 @@ where
             Node::Internal(internal_node) => {
                 let index = nibble_iter.next().unwrap();
 
+                // child does not exist at the given index - key not found
                 let Some(child) = internal_node.children.get(index) else {
                     return Ok(None);
                 };
 
-                let child_node_key = NodeKey {
-                    version: child.version,
-                    nibble_path: current_node_key.nibble_path.child(index),
-                };
+                let child_node_key = current_node_key.child(child.version, index);
 
                 self.get_value_at(child_node_key, nibble_iter)
             },
