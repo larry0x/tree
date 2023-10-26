@@ -99,7 +99,16 @@ where
     ) -> Result<(NodeKey, Node)> {
         self.mark_node_as_orphaned(version, &current_node_key)?;
 
-        let child_index = nibble_iter.next().unwrap();
+        let Some(child_index) = nibble_iter.next() else {
+            // nibble ran out. this means the current internal node's nibble
+            // path is the same as the key that's to be inserted. in this case,
+            // we simply put the value in the current node.
+            current_node.kv = Some(new_leaf_node);
+
+            return self.create_internal_node(version, current_node_key.nibble_path, current_node);
+        };
+
+        // otherwise, nibble hasn't run out, we need to further go down the tree
         let child_nibble_path = current_node_key.nibble_path.child(child_index);
 
         let (_, child_node) = match current_node.children.get(child_index) {
@@ -221,6 +230,29 @@ where
         );
         let mut common_nibble_path: NibblePath = nibble_iter.visited_nibbles().collect();
 
+        // First create the new leaf
+        let new_leaf_index = nibble_iter.next().unwrap();
+        let new_leaf_nibble_path = common_nibble_path.child(new_leaf_index);
+        let (_, new_leaf_node) = self.create_leaf_node(
+            version,
+            new_leaf_nibble_path,
+            new_leaf_node,
+        )?;
+
+        let Some(existing_leaf_index) = existing_leaf_nibbles_below_internal.next() else {
+            // existing leaf has no more nibbles. in this case we convert it to
+            // an internal node
+            let new_internal_node = InternalNode::new(current_node, vec![
+                Child {
+                    index: new_leaf_index,
+                    version,
+                    hash: new_leaf_node.hash(),
+                }
+            ]);
+
+            return self.create_internal_node(version, current_node_key.nibble_path, new_internal_node);
+        };
+
         // Now what we need to do is to create 3 new internal nodes, with the
         // following nibble paths, respectively:
         //
@@ -233,7 +265,6 @@ where
         // parent, so on.
         //
         // In this example, existing_leaf_index = 5
-        let existing_leaf_index = existing_leaf_nibbles_below_internal.next().unwrap();
         let existing_leaf_nibble_path = common_nibble_path.child(existing_leaf_index);
         let (_, existing_leaf_node) = self.create_leaf_node(
             version,
@@ -241,17 +272,8 @@ where
             current_node,
         )?;
 
-        // In this example, new_leaf_index = 7
-        let new_leaf_index = nibble_iter.next().unwrap();
-        let new_leaf_nibble_path = common_nibble_path.child(new_leaf_index);
-        let (_, new_leaf_node) = self.create_leaf_node(
-            version,
-            new_leaf_nibble_path,
-            new_leaf_node,
-        )?;
-
         // Create the parent of the two new leaves which have indexes 5 and 7
-        let new_internal_node = InternalNode::new(vec![
+        let new_internal_node = InternalNode::new_empty(vec![
             Child {
                 index: existing_leaf_index,
                 version,
@@ -272,7 +294,7 @@ where
         // In this example, three indexes are iterated: 4, 3, 2
         for _ in 0..num_common_nibbles_below_internal {
             let index = common_nibble_path.pop().unwrap();
-            let new_internal_node = InternalNode::new(vec![Child {
+            let new_internal_node = InternalNode::new_empty(vec![Child {
                 index,
                 version,
                 hash: new_node.hash(),
@@ -335,7 +357,7 @@ where
             return Ok(DeleteResponse::Unchanged);
         };
 
-        let child_node_key = current_node_key.child(version, child_index);
+        let child_node_key = current_node_key.child(child.version, child_index);
         let child_node = NODES.load(&self.store, &child_node_key)?;
 
         match child_node {
@@ -353,14 +375,13 @@ where
                         // the child internal node has been deleted and replaced
                         // with a leaf node
                         //
-                        // since we moved one level up the tree, we pop the last
-                        // nibble in the leaf's nibble path
-                        leaf_nibble_path.pop();
-
-                        // the incoming child is necessarily a leaf. if it is
-                        // the current node's only child, then we need to collapse it.
+                        // if the incoming leaf is the current node's only child,
+                        // then we need to further collapse it.
+                        //
                         // otherwise, we just update the current node's child list.
                         if current_node.children.count() == 1 {
+                            leaf_nibble_path.pop();
+
                             return Ok(DeleteResponse::Replaced {
                                 leaf_nibble_path,
                                 leaf_node,
@@ -406,23 +427,44 @@ where
                 self.mark_node_as_orphaned(version, &child_node_key)?;
                 current_node.children.remove(child_index);
 
-                // now the tricky part - if after deleting the leaf, the current
-                // node only has 1 child, and this child is a leaf, then we need
-                // to collapse the path
-                if let Some(other_child) = current_node.children.get_only() {
-                    let other_child_node_key = current_node_key.child(version, other_child.index);
-                    let other_child_node = NODES.load(&self.store, &other_child_node_key)?;
+                // now the tricky part!!!
+                match current_node.children.count() {
+                    // current node has no child
+                    //
+                    // in this case, it must have its own value, otherwise it
+                    // should have been collapsed in a previous deletion
+                    //
+                    // we replace the internal node with a new leaf node
+                    0 => {
+                        let leaf_node = current_node.kv.unwrap();
 
-                    if let Node::Leaf(leaf_node) = other_child_node {
                         self.mark_node_as_orphaned(version, &current_node_key)?;
-                        self.mark_node_as_orphaned(version, &other_child_node_key)?;
 
                         return Ok(DeleteResponse::Replaced {
-                            leaf_nibble_path: other_child_node_key.nibble_path,
-                            leaf_hash: other_child.hash.clone(),
+                            leaf_nibble_path: current_node_key.nibble_path,
+                            leaf_hash: leaf_node.hash(),
                             leaf_node,
                         });
-                    }
+                    },
+                    // current node only has exactly one child AND this child is
+                    // a leaf. we need to collapse the path
+                    1 => {
+                        let other_child = current_node.children.get_only();
+                        let other_child_node_key = current_node_key.child(other_child.version, other_child.index);
+                        let other_child_node = NODES.load(&self.store, &other_child_node_key)?;
+
+                        if let Node::Leaf(leaf_node) = other_child_node {
+                            self.mark_node_as_orphaned(version, &current_node_key)?;
+                            self.mark_node_as_orphaned(version, &other_child_node_key)?;
+
+                            return Ok(DeleteResponse::Replaced {
+                                leaf_nibble_path: current_node_key.nibble_path,
+                                leaf_hash: other_child.hash.clone(),
+                                leaf_node,
+                            });
+                        }
+                    },
+                    _ => (),
                 }
             },
         }

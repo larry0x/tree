@@ -11,14 +11,6 @@ pub enum Node {
 }
 
 impl Node {
-    pub fn new_internal(children: Vec<Child>) -> Self {
-        Self::Internal(InternalNode::new(children))
-    }
-
-    pub fn new_leaf(key: String, value: String) -> Self {
-        Self::Leaf(LeafNode::new(key, value))
-    }
-
     pub fn hash(&self) -> Hash {
         match self {
             Node::Internal(internal_node) => internal_node.hash(),
@@ -67,23 +59,24 @@ impl Children {
         self.0.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     pub fn get(&self, index: Nibble) -> Option<&Child> {
         self.0
             .iter()
             .find(|child| child.index == index)
     }
 
-    /// If there is exactly one child, then return a reference to this child.
-    /// If there is more than one children, return None.
-    ///
-    /// Under normal circumstances, this function shouldn't be called when there
-    /// is zero child.
-    pub fn get_only(&self) -> Option<&Child> {
-        if self.0.len() == 1 {
-            return Some(&self.0[0]);
+    /// If there is exactly one child, return a reference to this child.
+    /// Otherwise (no child or more than one children), panic.
+    pub fn get_only(&self) -> &Child {
+        if self.0.len() != 1 {
+            panic!("not exactly one child");
         }
 
-        None
+        &self.0[0]
     }
 
     pub fn insert(&mut self, new_child: Child) {
@@ -114,11 +107,22 @@ impl Children {
 #[cw_serde]
 pub struct InternalNode {
     pub children: Children,
+    // different from Ethereum's Patricia Merkle Tree, in our case the internal
+    // node itself may also have values
+    pub kv: Option<LeafNode>,
 }
 
 impl InternalNode {
-    pub fn new(children: Vec<Child>) -> Self {
+    pub fn new(kv: LeafNode, children: Vec<Child>) -> Self {
         Self {
+            kv: Some(kv),
+            children: children.into(),
+        }
+    }
+
+    pub fn new_empty(children: Vec<Child>) -> Self {
+        Self {
+            kv: None,
             children: children.into(),
         }
     }
@@ -132,10 +136,19 @@ impl InternalNode {
     // of the preimage.
     pub fn hash(&self) -> Hash {
         let mut hasher = Hasher::new();
+
+        // hash the children
         for child in &self.children {
             hasher.update(&[child.index.byte()]);
             hasher.update(child.hash.as_bytes());
         }
+
+        // has the internal node's own KV (if exists)
+        if let Some(LeafNode { key, value }) = &self.kv {
+            hasher.update(key.as_bytes());
+            hasher.update(value.as_bytes());
+        }
+
         hasher.finalize().into()
     }
 }

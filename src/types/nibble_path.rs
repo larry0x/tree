@@ -237,6 +237,10 @@ impl<'a> NibbleIterator<'a> {
         }
     }
 
+    pub fn finished(&self) -> bool {
+        self.peek().is_none()
+    }
+
     pub fn visited_nibbles(&self) -> NibbleIterator<'a> {
         Self::new(self.nibble_path, self.start, self.pos.start)
     }
