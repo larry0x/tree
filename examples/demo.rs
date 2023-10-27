@@ -1,7 +1,7 @@
 use {
     cosmwasm_std::{testing::MockStorage, Storage},
     serde::ser::Serialize,
-    tree::Tree,
+    tree::{Op, Tree},
 };
 
 fn print_root<S: Storage>(tree: &Tree<S>, version: Option<u64>) {
@@ -19,9 +19,12 @@ fn print_orphans<S: Storage>(tree: &Tree<S>) {
     print_json_pretty(&res)
 }
 
-fn print_value_of<S: Storage>(tree: &Tree<S>, key: &str, version: Option<u64>) {
-    let res = tree.get(key.into(), false, version).unwrap();
-    print_json_pretty(&res)
+fn print_values_of<S: Storage>(tree: &Tree<S>, keys: &[&str]) {
+    let mut responses = vec![];
+    for key in keys {
+        responses.push(tree.get(key.to_string(), false, None).unwrap());
+    }
+    print_json_pretty(&responses)
 }
 
 fn print_json_pretty<T>(data: &T)
@@ -37,18 +40,18 @@ fn main() {
 
     tree.initialize().unwrap();
 
-    tree.insert("foo".into(), "bar".into()).unwrap();
-    tree.insert("fuzz".into(), "buzz".into()).unwrap();
-    tree.insert("pumpkin".into(), "cat".into()).unwrap();
-    tree.insert("donald".into(), "trump".into()).unwrap();
-    tree.insert("joe".into(), "biden".into()).unwrap();
-    tree.insert("jake".into(), "shepherd".into()).unwrap();
-    tree.insert("satoshi".into(), "nakamoto".into()).unwrap();
-
-    tree.delete("donald".into()).unwrap();
-    tree.delete("joe".into()).unwrap();
-    tree.delete("pumpkin".into()).unwrap();
-    tree.delete("satoshi".into()).unwrap();
+    tree.apply([
+        ("foo".to_string(), Op::Insert("bar".into())),
+        ("fuzz".to_string(), Op::Insert("buzz".into())),
+        ("pumpkin".to_string(), Op::Insert("cat".into())),
+        ("donald".to_string(), Op::Insert("trump".into())),
+        ("joe".to_string(), Op::Insert("biden".into())),
+        ("jake".to_string(), Op::Insert("shepherd".into())),
+        ("satoshi".to_string(), Op::Insert("nakamoto".into())),
+    ]
+    .into_iter()
+    .collect())
+    .unwrap();
 
     tree.prune(None).unwrap();
 
@@ -62,16 +65,20 @@ fn main() {
 
     println!("\nORPHANS:");
     println!("------------------------------------------------------------------");
+    // should be empty since we already pruned
+    // but you can also comment the pruning line to see what happens
     print_orphans(&tree);
 
     println!("\nKEY-VALUE PAIRS:");
     println!("------------------------------------------------------------------");
-    print_value_of(&tree, "foo", None);
-    print_value_of(&tree, "fuzz", None);
-    print_value_of(&tree, "pumpkin", None);
-    print_value_of(&tree, "donald", None);
-    print_value_of(&tree, "joe", None);
-    print_value_of(&tree, "jake", None);
-    print_value_of(&tree, "satoshi", None);
-    print_value_of(&tree, "larry", None); // should be None
+    print_values_of(&tree, &[
+        "foo",
+        "fuzz",
+        "pumpkin",
+        "donald",
+        "joe",
+        "jake",
+        "satoshi",
+        "larry", // should be None
+    ]);
 }

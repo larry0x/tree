@@ -10,3 +10,6 @@ target/
 
 # macos
 .DS_Store
+
+# data used for development purpose which we don't want to commit
+testdata/
