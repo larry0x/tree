@@ -35,6 +35,14 @@ where
     }
 
     pub fn apply(&mut self, batch: BTreeMap<String, Op>) -> Result<Response> {
+        let batch = batch
+            .into_iter()
+            .map(|(key, op)| {
+                let nibble_path = NibblePath::from(key.as_bytes().to_vec());
+                (nibble_path, op)
+            })
+            .collect::<Vec<_>>();
+
         todo!();
     }
 

@@ -4,6 +4,7 @@ mod children;
 mod hash;
 mod nibble;
 mod nibble_path;
+mod nibble_range;
 mod node;
 mod node_key;
 mod op;
@@ -15,6 +16,7 @@ pub use {
     hash::{Hash, HASH_LEN},
     nibble::Nibble,
     nibble_path::{NibbleIterator, NibblePath},
+    nibble_range::NibbleRangeIterator,
     node::{Child, Node, NodeData},
     node_key::NodeKey,
     op::Op,

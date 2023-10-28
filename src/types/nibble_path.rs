@@ -11,6 +11,7 @@ use {
     std::{any::type_name, fmt, ops::Range},
 };
 
+// TODO: impl Ord
 #[derive(Clone, PartialEq, Eq, Hash, JsonSchema)]
 pub struct NibblePath {
     pub num_nibbles: usize,
