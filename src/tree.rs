@@ -89,7 +89,7 @@ where
     ) -> Result<OpResponse> {
         // attempt to load the node. if not found, we simply create a new empty
         // node (no children, no data)
-        let current_node_before = NODES.may_load(&self.store, &current_node_key)?.unwrap_or_else(Node::new);
+        let current_node_before = NODES.may_load(&self.store, current_node_key)?.unwrap_or_else(Node::new);
 
         // make a mutable clone of the current node. after we've executed the
         // ops, we will compare with the original whether it has been changed
@@ -112,7 +112,7 @@ where
         //
         // if this condition is not satisfied, we need to dispatch the ops to
         // the current node's children.
-        if batch.len() == 1 && execute_op_at_node(&current_node_key, &current_node, &batch[0].0) {
+        if batch.len() == 1 && execute_op_at_node(current_node_key, &current_node, &batch[0].0) {
             let (nibble_path, op) = batch[0].clone();
             current_node.data = match op {
                 Op::Insert(value) => {
@@ -124,7 +124,7 @@ where
                 Op::Delete => None,
             };
         } else {
-            let nibble_range_iter = NibbleRangeIterator::new(&batch, current_node_key.depth());
+            let nibble_range_iter = NibbleRangeIterator::new(batch, current_node_key.depth());
             for NibbleRange { nibble, start, end } in nibble_range_iter {
                 self.apply_at_index(
                     version,
@@ -279,7 +279,7 @@ where
     }
 
     fn create_node(&mut self, version: u64, nibble_path: NibblePath, node: &Node) -> StdResult<()> {
-        NODES.save(&mut self.store, &NodeKey::new(version, nibble_path), &node)
+        NODES.save(&mut self.store, &NodeKey::new(version, nibble_path), node)
     }
 
     fn mark_node_as_orphaned(

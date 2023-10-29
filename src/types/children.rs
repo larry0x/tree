@@ -8,6 +8,7 @@ use {
 };
 
 #[cw_serde]
+#[derive(Default)]
 pub struct Children(Vec<Child>);
 
 impl From<Vec<Child>> for Children {

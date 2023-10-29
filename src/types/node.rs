@@ -33,6 +33,7 @@ pub struct NodeData {
 ///   opimization is limited with the tradeoff of higher code complexity. We
 ///   consider it's not worth it. See a similar discussion in Diem's JMT paper.
 #[cw_serde]
+#[derive(Default)]
 pub struct Node {
     // TODO: replace this with BTreeMap<Nibble, Child> when possible
     pub children: Children,
@@ -41,10 +42,7 @@ pub struct Node {
 
 impl Node {
     pub fn new() -> Self {
-        Self {
-            children: Children::new(vec![]),
-            data: None,
-        }
+        Self::default()
     }
 
     pub fn new_internal(children: impl Into<Children>) -> Self {
