@@ -82,13 +82,13 @@ fn main() {
     println!("\nKEY-VALUE PAIRS:");
     println!("------------------------------------------------------------------");
     print_values_of(&tree, &[
+        // these are the 3 keys that exist
+        "food",
+        "pumpkin",
+        "satoshi",
+        // keys below do not exist in the tree, should return None/null
         "foo",
         "fuzz",
-        "pumpkin",
-        "donald",
-        "joe",
-        "jake",
-        "satoshi",
-        "larry", // should be None
+        "larry",
     ]);
 }

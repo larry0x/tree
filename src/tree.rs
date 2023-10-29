@@ -151,7 +151,7 @@ where
             if !current_node.children.is_empty() && key.as_bytes() != current_node_key.nibble_path.bytes {
                 current_node.data = None;
                 let nibble_path = NibblePath::from(key.as_bytes().to_vec());
-                let nibble = nibble_path.get_nibble(current_node_key.depth() + 1);
+                let nibble = nibble_path.get_nibble(current_node_key.depth());
                 self.apply_at_index(
                     version,
                     current_node_key,
@@ -238,10 +238,6 @@ where
                     self.mark_node_as_orphaned(version, &child_node_key)?;
                 }
 
-                // we don't write the updated child node to store just
-                // yet, because if it happens to be the current node's
-                // only child after executing all the ops, we will need
-                // to collapse the path.
                 updated_child_nodes.insert(index, updated_child_node);
             },
             OpResponse::Deleted => {
