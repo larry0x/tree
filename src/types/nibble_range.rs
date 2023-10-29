@@ -1,5 +1,13 @@
 use crate::{Nibble, NibblePath, Op};
 
+#[cfg_attr(test, derive(Debug, PartialEq))]
+pub struct NibbleRange {
+    pub nibble: Nibble,
+    pub start: usize,
+    // end is inclusive
+    pub end: usize,
+}
+
 /// Assume we have a list of nibble paths, which can be of variable lengths,
 /// ordered ascendingly (important!). For example:
 ///
@@ -45,7 +53,7 @@ pub struct NibbleRangeIterator<'a> {
 }
 
 impl<'a> NibbleRangeIterator<'a> {
-    fn new(batch: &'a [(NibblePath, Op)], nibble_idx: usize) -> Self {
+    pub fn new(batch: &'a [(NibblePath, Op)], nibble_idx: usize) -> Self {
         Self {
             batch,
             nibble_idx,
@@ -60,7 +68,7 @@ impl<'a> NibbleRangeIterator<'a> {
 }
 
 impl<'a> Iterator for NibbleRangeIterator<'a> {
-    type Item = (usize, usize);
+    type Item = NibbleRange;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos == self.batch.len() {
@@ -84,7 +92,11 @@ impl<'a> Iterator for NibbleRangeIterator<'a> {
 
         self.pos = i + 1;
 
-        Some((left, i))
+        Some(NibbleRange {
+            nibble: current_nibble,
+            start: left,
+            end: i,
+        })
     }
 }
 
@@ -107,5 +119,16 @@ fn iterating_nibble_ranges() {
 
     let nibble_range_iter = NibbleRangeIterator::new(batch.as_slice(), 0);
     let ranges = nibble_range_iter.collect::<Vec<_>>();
-    assert_eq!(ranges, vec![(0, 3), (4, 5)]);
+    assert_eq!(ranges, vec![
+        NibbleRange {
+            nibble: Nibble::from(0u8),
+            start: 0,
+            end: 3,
+        },
+        NibbleRange {
+            nibble: Nibble::from(1u8),
+            start: 4,
+            end: 5,
+        },
+    ]);
 }

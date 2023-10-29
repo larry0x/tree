@@ -16,10 +16,10 @@ pub use {
     hash::{Hash, HASH_LEN},
     nibble::Nibble,
     nibble_path::{NibbleIterator, NibblePath},
-    nibble_range::NibbleRangeIterator,
+    nibble_range::{NibbleRange, NibbleRangeIterator},
     node::{Child, Node, NodeData},
     node_key::NodeKey,
-    op::Op,
+    op::{Op, OpResponse},
     proof::{Proof, Sibling},
     query::{GetResponse, NodeResponse, OrphanResponse, RootResponse},
 };

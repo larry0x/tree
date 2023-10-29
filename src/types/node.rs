@@ -40,6 +40,13 @@ pub struct Node {
 }
 
 impl Node {
+    pub fn new() -> Self {
+        Self {
+            children: Children::new(vec![]),
+            data: None,
+        }
+    }
+
     pub fn new_internal(children: impl Into<Children>) -> Self {
         Self {
             children: children.into(),
@@ -55,7 +62,11 @@ impl Node {
     }
 
     pub fn is_leaf(&self) -> bool {
-        self.children.is_empty()
+        self.children.is_empty() && self.data.is_some()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.children.is_empty() && self.data.is_none()
     }
 
     /// Compute the node's hash, which is defined as:

@@ -14,6 +14,13 @@ pub struct NodeKey {
 }
 
 impl NodeKey {
+    pub fn new(version: u64, nibble_path: NibblePath) -> Self {
+        Self {
+            version,
+            nibble_path,
+        }
+    }
+
     pub fn root(version: u64) -> Self {
         Self {
             version,
@@ -26,6 +33,10 @@ impl NodeKey {
             version,
             nibble_path: self.nibble_path.child(index),
         }
+    }
+
+    pub fn depth(&self) -> usize {
+        self.nibble_path.num_nibbles
     }
 }
 

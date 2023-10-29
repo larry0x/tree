@@ -38,21 +38,31 @@ where
 fn main() {
     let mut tree = Tree::new(MockStorage::new());
 
+    println!("initializing!");
     tree.initialize().unwrap();
 
+    println!("applying the 1st batch!");
     tree.apply([
-        ("foo".to_string(), Op::Insert("bar".into())),
+        ("food".to_string(), Op::Insert("ramen".into())),
         ("fuzz".to_string(), Op::Insert("buzz".into())),
+        ("larry".to_string(), Op::Insert("engineer".into())),
         ("pumpkin".to_string(), Op::Insert("cat".into())),
-        ("donald".to_string(), Op::Insert("trump".into())),
-        ("joe".to_string(), Op::Insert("biden".into())),
-        ("jake".to_string(), Op::Insert("shepherd".into())),
+    ]
+    .into_iter()
+    .collect())
+    .unwrap();
+
+    println!("applying the 2nd batch!");
+    tree.apply([
+        ("fuzz".to_string(), Op::Delete),
+        ("larry".to_string(), Op::Delete),
         ("satoshi".to_string(), Op::Insert("nakamoto".into())),
     ]
     .into_iter()
     .collect())
     .unwrap();
 
+    println!("pruning!");
     tree.prune(None).unwrap();
 
     println!("ROOT:");

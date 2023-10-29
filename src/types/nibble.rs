@@ -7,7 +7,7 @@ use {
     std::fmt,
 };
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, JsonSchema)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, JsonSchema)]
 pub struct Nibble(u8);
 
 impl Nibble {

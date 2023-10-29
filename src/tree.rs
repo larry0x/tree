@@ -1,11 +1,14 @@
 use {
     crate::{
-        Child, Children, GetResponse, Hash, NibbleIterator, NibblePath, Node, NodeData, NodeKey,
-        NodeResponse, Op, OrphanResponse, RootResponse, Set,
+        Child, GetResponse, Nibble, NibbleIterator, NibblePath, NibbleRange, NibbleRangeIterator,
+        Node, NodeData, NodeKey, NodeResponse, Op, OpResponse, OrphanResponse, RootResponse, Set,
     },
-    cosmwasm_std::{ensure, Order, Response, StdResult, Storage},
+    cosmwasm_std::{Order, StdResult, Storage},
     cw_storage_plus::{Bound, Item, Map, PrefixBound},
-    std::{cmp::Ordering, collections::BTreeMap},
+    std::{
+        cmp::Ordering,
+        collections::{BTreeMap, HashMap},
+    },
 };
 
 const LAST_COMMITTED_VERSION: Item<u64>            = Item::new("v");
@@ -34,7 +37,27 @@ where
         Ok(())
     }
 
-    pub fn apply(&mut self, batch: BTreeMap<String, Op>) -> Result<Response> {
+    /// Apply a batch of ops to the tree. Each op can be either 1) inserting a
+    /// value at a key, or 2) deleting a key.
+    ///
+    /// This method requires that ops in the batch must be sorted ascendingly by
+    /// the keys, which is why we require it be a BTreeMap.
+    ///
+    /// For use in blockchains, typically it works like this:
+    /// - The tree persists the state of last committed block.
+    /// - The chain maintains an in-memory write batch; while executing
+    ///   transactions in a new block, state changes are recorded in that batch.
+    /// - If the block is ready to be committed, the chain calls this `apply`
+    ///   method to write the changes to to disk, while resetting its in-memory
+    ///   to empty, getting ready for the next block.
+    ///
+    /// Note: keys must not be empty, but we don't assert it here.
+    pub fn apply(&mut self, batch: BTreeMap<String, Op>) -> Result<()> {
+        let (old_version, new_version) = self.increment_version()?;
+        let old_root_key = NodeKey::root(old_version);
+
+        // collect the batch into a sorted Vec, also converting the string keys
+        // to NibblePaths
         let batch = batch
             .into_iter()
             .map(|(key, op)| {
@@ -43,10 +66,197 @@ where
             })
             .collect::<Vec<_>>();
 
-        todo!();
+        // recursively apply the batch, starting from the root (depth = 0)
+        match self.apply_at(new_version, &old_root_key, batch.as_slice())? {
+            OpResponse::Updated(updated_root_node) => {
+                self.create_node(new_version, NibblePath::empty(), &updated_root_node)?;
+                self.mark_node_as_orphaned(new_version, &old_root_key)?;
+            },
+            OpResponse::Deleted => {
+                self.mark_node_as_orphaned(new_version, &old_root_key)?;
+            },
+            OpResponse::Unchanged => (),
+        }
+
+        Ok(())
     }
 
-    pub fn prune(&mut self, up_to_version: Option<u64>) -> Result<Response> {
+    fn apply_at(
+        &mut self,
+        version: u64,
+        current_node_key: &NodeKey,
+        batch: &[(NibblePath, Op)],
+    ) -> Result<OpResponse> {
+        // attempt to load the node. if not found, we simply create a new empty
+        // node (no children, no data)
+        let current_node_before = NODES.may_load(&self.store, &current_node_key)?.unwrap_or_else(Node::new);
+
+        // make a mutable clone of the current node. after we've executed the
+        // ops, we will compare with the original whether it has been changed
+        let mut current_node = current_node_before.clone();
+
+        // a cache of the current node's children that have been changed.
+        // we don't want to write these nodes to store immediately, because if
+        // the current node ends up having only one child, we will need to
+        // collapse the path (i.e. delete the current node, move the only child
+        // one level up)
+        let mut updated_child_nodes = HashMap::new();
+
+        // if there is only one item in the batch AND one of the following is
+        // satisfied, then we apply the op at the current node:
+        // - the current node's nibble path matches exactly the nibble path we
+        //   want to write to
+        // - the current node is a leaf, and the key matches exactly the nibble
+        //   path we want to write to
+        // - the current node has neither any child nor data
+        //
+        // if this condition is not satisfied, we need to dispatch the ops to
+        // the current node's children.
+        if batch.len() == 1 && execute_op_at_node(&current_node_key, &current_node, &batch[0].0) {
+            let (nibble_path, op) = batch[0].clone();
+            current_node.data = match op {
+                Op::Insert(value) => {
+                    Some(NodeData {
+                        key: String::from_utf8(nibble_path.bytes.clone()).unwrap(),
+                        value,
+                    })
+                },
+                Op::Delete => None,
+            };
+        } else {
+            let nibble_range_iter = NibbleRangeIterator::new(&batch, current_node_key.depth());
+            for NibbleRange { nibble, start, end } in nibble_range_iter {
+                self.apply_at_index(
+                    version,
+                    current_node_key,
+                    &mut current_node,
+                    nibble,
+                    &batch[start..=end],
+                    &mut updated_child_nodes,
+                )?;
+            }
+        }
+
+        // Now that we have finished executing the ops, we need to look at a
+        // complexity not present in Ethereum's Patricia Merkle tree (PMT) or
+        // Diem's Jellyfish Merkle tree (JMT). That is, our tree's internal
+        // nodes may have data too. In contrary, in PMT/JMT, data are only found
+        // in leaf nodes.
+        //
+        // The complexity is this: if the current node had previously been a
+        // leaf node (has data but no children), but after applying the ops now
+        // it has children, then the data may needs to be moved down the tree to
+        // a new leaf node.
+        if let Some(NodeData { key, value }) = current_node.data.clone() {
+            if !current_node.children.is_empty() && key.as_bytes() != current_node_key.nibble_path.bytes {
+                current_node.data = None;
+                let nibble_path = NibblePath::from(key.as_bytes().to_vec());
+                let nibble = nibble_path.get_nibble(current_node_key.depth() + 1);
+                self.apply_at_index(
+                    version,
+                    current_node_key,
+                    &mut current_node,
+                    nibble,
+                    &[(nibble_path, Op::Insert(value.clone()))],
+                    &mut updated_child_nodes,
+                )?;
+            }
+        }
+
+        // finally, everything is done with the current node, we need to reply
+        // the outcome to our parent node. the rules are:
+        // - if the current node has neither any child nor data, then it should
+        //   be deleted
+        // - if the current node has no data and exactly 1 child, and this child
+        //   is a leaf node, then the path can be collapsed (i.e. the current
+        //   node deleted, and that child leaf node moved on level up)
+        // - if the current node has been updated, we pass the updated node to
+        //   the parent who will recompute the hash
+        // - if the current node has NOT been changed, we inform the parent node
+        //   about this so it doesn't need to recompute the hash
+        if current_node.data.is_none() {
+            if current_node.children.is_empty() {
+                return Ok(OpResponse::Deleted);
+            }
+
+            if let Some(child) = current_node.children.get_only() {
+                // the current node has only 1 child. this child may have just
+                // been updated, in which case it should be in the `updated_child_nodes`
+                // map, or not updated, in which case it needs to be loaded from
+                // the store
+                if let Some(child_node) = updated_child_nodes.remove(&child.index) {
+                    if child_node.is_leaf() {
+                        return Ok(OpResponse::Updated(child_node));
+                    }
+                } else {
+                    let child_node_key = current_node_key.child(child.version, child.index);
+                    let child_node = NODES.load(&self.store, &child_node_key)?;
+                    if child_node.is_leaf() {
+                        self.mark_node_as_orphaned(version, &child_node_key)?;
+                        return Ok(OpResponse::Updated(child_node));
+                    }
+                };
+            } else {
+                // now we know the current node won't be deleted or collapsed,
+                // we can write the updated child nodes
+                for (nibble, node) in updated_child_nodes {
+                    let nibble_path = current_node_key.nibble_path.child(nibble);
+                    self.create_node(version, nibble_path, &node)?;
+                }
+            }
+        }
+
+        if current_node != current_node_before {
+            return Ok(OpResponse::Updated(current_node));
+        }
+
+        Ok(OpResponse::Unchanged)
+    }
+
+    fn apply_at_index(
+        &mut self,
+        version: u64,
+        current_node_key: &NodeKey,
+        current_node: &mut Node,
+        index: Nibble,
+        batch: &[(NibblePath, Op)],
+        updated_child_nodes: &mut HashMap<Nibble, Node>,
+    ) -> Result<()> {
+        let child = current_node.children.get(index);
+        let child_version = child.map(|c| c.version).unwrap_or(version);
+        let child_node_key = current_node_key.child(child_version, index);
+
+        match self.apply_at(version, &child_node_key, batch)? {
+            OpResponse::Updated(updated_child_node) => {
+                current_node.children.insert(Child {
+                    index,
+                    version,
+                    hash: updated_child_node.hash(),
+                });
+
+                if child_node_key.version < version {
+                    self.mark_node_as_orphaned(version, &child_node_key)?;
+                }
+
+                // we don't write the updated child node to store just
+                // yet, because if it happens to be the current node's
+                // only child after executing all the ops, we will need
+                // to collapse the path.
+                updated_child_nodes.insert(index, updated_child_node);
+            },
+            OpResponse::Deleted => {
+                current_node.children.remove(index);
+                if child_node_key.version < version {
+                    self.mark_node_as_orphaned(version, &child_node_key)?;
+                }
+            },
+            OpResponse::Unchanged => (),
+        }
+
+        Ok(())
+    }
+
+    pub fn prune(&mut self, up_to_version: Option<u64>) -> Result<()> {
         let end = up_to_version.map(PrefixBound::inclusive);
 
         loop {
@@ -65,7 +275,11 @@ where
             }
         }
 
-        Ok(Response::new())
+        Ok(())
+    }
+
+    fn create_node(&mut self, version: u64, nibble_path: NibblePath, node: &Node) -> StdResult<()> {
+        NODES.save(&mut self.store, &NodeKey::new(version, nibble_path), &node)
     }
 
     fn mark_node_as_orphaned(
@@ -76,8 +290,12 @@ where
         ORPHANS.insert(&mut self.store, (orphaned_since_version, node_key))
     }
 
-    fn increment_version(&mut self) -> StdResult<u64> {
-        LAST_COMMITTED_VERSION.update(&mut self.store, |version| Ok(version + 1))
+    fn increment_version(&mut self) -> StdResult<(u64, u64)> {
+        let old_version = LAST_COMMITTED_VERSION.load(&self.store)?;
+        let new_version = old_version + 1;
+        LAST_COMMITTED_VERSION.save(&mut self.store, &new_version)?;
+
+        Ok((old_version, new_version))
     }
 
     pub fn root(&self, version: Option<u64>) -> Result<RootResponse> {
@@ -224,7 +442,24 @@ where
     }
 }
 
-/// If the user specifies a version, we use it. Otherwise, load the latest version.
+fn execute_op_at_node(node_key: &NodeKey, node: &Node, nibble_path: &NibblePath) -> bool {
+    if &node_key.nibble_path == nibble_path {
+        return true;
+    }
+
+    if let Some(NodeData { key, .. }) = &node.data {
+        if key.as_bytes() == nibble_path.bytes {
+            return true;
+        }
+    }
+
+    if node.is_empty() {
+        return true;
+    }
+
+    false
+}
+
 fn unwrap_version(store: &dyn Storage, version: Option<u64>) -> StdResult<u64> {
     if let Some(version) = version {
         Ok(version)
