@@ -15,6 +15,7 @@ Design objectives:
 | stable rust implementation | ❌    | ❌    | ✅   | ✅         |
 | batched ops                | ❌    | ✅    | ✅   | ✅         |
 | deletion                   | ✅    | ✅    | ❌   | ✅         |
+| iteration                  | ✅    | ✅    | ❌   | ✅         |
 | O(1) read                  | ❌    | ✅    | ❌   | ❌         |
 | historical query           | ✅    | ❌    | ✅   | ✅         |
 | merkle proof               | ✅    | ✅    | ✅   | ✅         |
