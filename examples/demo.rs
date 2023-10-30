@@ -1,5 +1,5 @@
 use {
-    cosmwasm_std::{testing::MockStorage, Storage},
+    cosmwasm_std::{from_binary, testing::MockStorage, Storage},
     serde::ser::Serialize,
     tree::{verify_membership, verify_non_membership, Op, Tree},
 };
@@ -25,13 +25,14 @@ fn print_values_and_verify<S: Storage>(tree: &Tree<S>, keys: &[&str]) {
     let mut responses = vec![];
     for key in keys {
         let res = tree.get(key.to_string(), true, None).unwrap();
+        let proof = from_binary(res.proof.as_ref().unwrap()).unwrap();
 
         // verify the proof
         if let Some(value) = &res.value {
-            verify_membership(&root.root_hash, key, value, res.proof.as_ref().unwrap()).unwrap();
+            verify_membership(&root.root_hash, key, value, &proof).unwrap();
             println!("verified the existence of ({key}, {value})");
         } else {
-            verify_non_membership(&root.root_hash, key, res.proof.as_ref().unwrap()).unwrap();
+            verify_non_membership(&root.root_hash, key, &proof).unwrap();
             println!("verified the non-existence of {key}");
         }
 

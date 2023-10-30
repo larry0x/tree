@@ -1,6 +1,7 @@
 use {
-    crate::types::{Hash, Node, NodeKey, Proof},
+    crate::types::{Hash, Node, NodeKey},
     cosmwasm_schema::cw_serde,
+    cosmwasm_std::Binary,
 };
 
 #[cw_serde]
@@ -16,7 +17,7 @@ pub struct GetResponse {
     /// None if not found
     pub value: Option<String>,
     /// None if proof is not requested, or if the tree is empty
-    pub proof: Option<Proof>,
+    pub proof: Option<Binary>,
 }
 
 #[cw_serde]

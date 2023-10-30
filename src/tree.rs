@@ -4,7 +4,7 @@ use {
         Node, NodeData, NodeKey, NodeResponse, Op, OpResponse, OrphanResponse, Proof, ProofNode,
         RootResponse, Set,
     },
-    cosmwasm_std::{Order, StdResult, Storage},
+    cosmwasm_std::{to_binary, Order, StdResult, Storage},
     cw_storage_plus::{Bound, Item, Map, PrefixBound},
     std::{
         cmp::Ordering,
@@ -323,6 +323,12 @@ where
             prove,
         )?;
 
+        let proof = if prove {
+            Some(to_binary(&proof)?)
+        } else {
+            None
+        };
+
         Ok(GetResponse { version, key, value, proof })
     }
 
@@ -331,7 +337,7 @@ where
         current_node_key: NodeKey,
         nibble_iter: &mut NibbleIterator,
         prove: bool,
-    ) -> Result<(Option<String>, Option<Proof>)> {
+    ) -> Result<(Option<String>, Proof)> {
         let Some(current_node) = NODES.may_load(&self.store, &current_node_key)? else {
             // Node is not found. There are a few circumstances:
             // - if the node is the root,
@@ -345,7 +351,7 @@ where
                 let latest_version = LAST_COMMITTED_VERSION.load(&self.store)?;
                 return match current_node_key.version.cmp(&latest_version) {
                     Ordering::Equal => {
-                        Ok((None, None))
+                        Ok((None, vec![]))
                     },
                     Ordering::Less => {
                         Err(TreeError::RootNodeNotFound {
@@ -369,9 +375,9 @@ where
         if let Some(NodeData { key, value }) = current_node.data.clone() {
             if key.as_bytes() == nibble_iter.nibble_path().bytes {
                 let proof = if prove {
-                    Some(vec![ProofNode::from_node(current_node.clone(), None, true)])
+                    vec![ProofNode::from_node(current_node.clone(), None, true)]
                 } else {
-                    None
+                    vec![]
                 };
                 return Ok((Some(value), proof));
             }
@@ -381,9 +387,9 @@ where
         // not found
         let Some(index) = nibble_iter.next() else {
             let proof = if prove {
-                Some(vec![ProofNode::from_node(current_node, None, false)])
+                vec![ProofNode::from_node(current_node, None, false)]
             } else {
-                None
+                vec![]
             };
             return Ok((None, proof));
         };
@@ -392,23 +398,21 @@ where
         // corresponding child, then key is not found
         let Some(child) = current_node.children.get(index) else {
             let proof = if prove {
-                Some(vec![ProofNode::from_node(current_node, None, false)])
+                vec![ProofNode::from_node(current_node, None, false)]
             } else {
-                None
+                vec![]
             };
             return Ok((None, proof));
         };
 
-        let (value, proof) = self.get_at(
+        let (value, mut proof) = self.get_at(
             current_node_key.child(child.version, index),
             nibble_iter,
             prove,
         )?;
 
         if prove {
-            let mut proof = proof.unwrap();
             proof.push(ProofNode::from_node(current_node, Some(index), false));
-            return Ok((value, Some(proof)));
         }
 
         Ok((value, proof))
