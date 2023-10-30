@@ -71,10 +71,14 @@ where
         match self.apply_at(new_version, &old_root_key, batch.as_slice())? {
             OpResponse::Updated(updated_root_node) => {
                 self.create_node(new_version, NibblePath::empty(), &updated_root_node)?;
-                self.mark_node_as_orphaned(new_version, &old_root_key)?;
+                if old_version > 0 {
+                    self.mark_node_as_orphaned(new_version, &old_root_key)?;
+                }
             },
             OpResponse::Deleted => {
-                self.mark_node_as_orphaned(new_version, &old_root_key)?;
+                if old_version > 0 {
+                    self.mark_node_as_orphaned(new_version, &old_root_key)?;
+                }
             },
             OpResponse::Unchanged => (),
         }
