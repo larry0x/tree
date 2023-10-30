@@ -1,5 +1,5 @@
 use {
-    crate::types::{hash_data, hash_proof_child, Hash, Nibble, NodeData},
+    crate::types::{hash_data, hash_proof_child, Children, Hash, Nibble, Node, NodeData},
     blake3::Hasher,
     cosmwasm_schema::cw_serde,
 };
@@ -21,6 +21,18 @@ pub struct ProofChild {
     pub hash: Hash,
 }
 
+impl From<Children> for Vec<ProofChild> {
+    fn from(children: Children) -> Self {
+        children
+            .into_iter()
+            .map(|child| ProofChild {
+                index: child.index,
+                hash: child.hash,
+            })
+            .collect()
+    }
+}
+
 /// ProofNode is like Node but simplified in three ways:
 /// - contains SimpleChild instead of Child
 /// - children doesn't need to include the child of interest, because it can be
@@ -32,7 +44,23 @@ pub struct ProofNode {
     pub data: Option<NodeData>
 }
 
+
 impl ProofNode {
+    pub fn from_node(mut node: Node, drop_child_at_index: Option<Nibble>, drop_data: bool) -> Self {
+        if let Some(index) = drop_child_at_index {
+            node.children.remove(index);
+        }
+
+        if drop_data {
+            node.data = None;
+        }
+
+        Self {
+            children: node.children.into(),
+            data: node.data,
+        }
+    }
+
     pub fn has_child_at_index(&self, index: Nibble) -> bool {
         self.children
             .iter()

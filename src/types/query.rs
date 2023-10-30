@@ -11,10 +11,11 @@ pub struct RootResponse {
 
 #[cw_serde]
 pub struct GetResponse {
+    pub version: u64,
     pub key: String,
     /// None if not found
     pub value: Option<String>,
-    /// None if proof is not requested
+    /// None if proof is not requested, or if the tree is empty
     pub proof: Option<Proof>,
 }
 

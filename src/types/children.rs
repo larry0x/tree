@@ -23,6 +23,15 @@ impl AsRef<[Child]> for Children {
     }
 }
 
+impl IntoIterator for Children {
+    type Item = Child;
+    type IntoIter = std::vec::IntoIter<Child>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 impl<'a> IntoIterator for &'a Children {
     type Item = &'a Child;
     type IntoIter = std::slice::Iter<'a, Child>;

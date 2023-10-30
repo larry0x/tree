@@ -1,7 +1,7 @@
 use {
     cosmwasm_std::{testing::MockStorage, Storage},
     serde::ser::Serialize,
-    tree::{Op, Tree},
+    tree::{verify_membership, verify_non_membership, Op, Tree},
 };
 
 fn print_root<S: Storage>(tree: &Tree<S>, version: Option<u64>) {
@@ -19,11 +19,25 @@ fn print_orphans<S: Storage>(tree: &Tree<S>) {
     print_json_pretty(&res)
 }
 
-fn print_values_of<S: Storage>(tree: &Tree<S>, keys: &[&str]) {
+fn print_values_and_verify<S: Storage>(tree: &Tree<S>, keys: &[&str]) {
+    let root = tree.root(None).unwrap();
+
     let mut responses = vec![];
     for key in keys {
-        responses.push(tree.get(key.to_string(), false, None).unwrap());
+        let res = tree.get(key.to_string(), true, None).unwrap();
+
+        // verify the proof
+        if let Some(value) = &res.value {
+            verify_membership(&root.root_hash, key, value, res.proof.as_ref().unwrap()).unwrap();
+            println!("verified the existence of ({key}, {value})");
+        } else {
+            verify_non_membership(&root.root_hash, key, res.proof.as_ref().unwrap()).unwrap();
+            println!("verified the non-existence of {key}");
+        }
+
+        responses.push(res);
     }
+
     print_json_pretty(&responses)
 }
 
@@ -52,15 +66,15 @@ fn main() {
     .collect())
     .unwrap();
 
-    // println!("applying the 2nd batch!");
-    // tree.apply([
-    //     ("fuzz".to_string(), Op::Delete),
-    //     ("larry".to_string(), Op::Delete),
-    //     ("satoshi".to_string(), Op::Insert("nakamoto".into())),
-    // ]
-    // .into_iter()
-    // .collect())
-    // .unwrap();
+    println!("applying the 2nd batch!");
+    tree.apply([
+        ("fuzz".to_string(), Op::Delete),
+        ("larry".to_string(), Op::Delete),
+        ("satoshi".to_string(), Op::Insert("nakamoto".into())),
+    ]
+    .into_iter()
+    .collect())
+    .unwrap();
 
     println!("pruning!");
     tree.prune(None).unwrap();
@@ -81,7 +95,7 @@ fn main() {
 
     println!("\nKEY-VALUE PAIRS:");
     println!("------------------------------------------------------------------");
-    print_values_of(&tree, &[
+    print_values_and_verify(&tree, &[
         // these are the 3 keys that exist
         "food",
         "pumpkin",
