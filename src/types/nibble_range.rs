@@ -121,12 +121,12 @@ fn iterating_nibble_ranges() {
     let ranges = nibble_range_iter.collect::<Vec<_>>();
     assert_eq!(ranges, vec![
         NibbleRange {
-            nibble: Nibble::from(0u8),
+            nibble: Nibble::new(0),
             start: 0,
             end: 3,
         },
         NibbleRange {
-            nibble: Nibble::from(1u8),
+            nibble: Nibble::new(1),
             start: 4,
             end: 5,
         },

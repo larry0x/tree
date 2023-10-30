@@ -61,13 +61,13 @@ impl NibblePath {
             self.num_nibbles -= 1;
         }
 
-        popped_byte.map(Nibble::from)
+        popped_byte.map(Nibble::new)
     }
 
     // panics if index is out of range
     pub fn get_nibble(&self, i: usize) -> Nibble {
         assert!(i < self.num_nibbles);
-        Nibble::from((self.bytes[i / 2] >> (if i % 2 == 1 { 0 } else { 4 })) & 0xf)
+        Nibble::new((self.bytes[i / 2] >> (if i % 2 == 1 { 0 } else { 4 })) & 0xf)
     }
 
     pub fn nibbles(&self) -> NibbleIterator {

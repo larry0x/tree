@@ -11,6 +11,14 @@ use {
 pub struct Nibble(u8);
 
 impl Nibble {
+    pub fn new(byte: u8) -> Self {
+        if byte > 0x0f {
+            panic!("nibble value cannot be greater than 0x0f");
+        }
+
+        Self(byte)
+    }
+
     pub fn byte(self) -> u8 {
         self.0
     }
@@ -25,16 +33,6 @@ impl fmt::Display for Nibble {
 impl fmt::Debug for Nibble {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Nibble({:x})", self.0)
-    }
-}
-
-impl From<u8> for Nibble {
-    fn from(byte: u8) -> Self {
-        if byte > 0x0f {
-            panic!("nibble value cannot be greater than 0x0f");
-        }
-
-        Self(byte)
     }
 }
 

@@ -52,15 +52,15 @@ fn main() {
     .collect())
     .unwrap();
 
-    println!("applying the 2nd batch!");
-    tree.apply([
-        ("fuzz".to_string(), Op::Delete),
-        ("larry".to_string(), Op::Delete),
-        ("satoshi".to_string(), Op::Insert("nakamoto".into())),
-    ]
-    .into_iter()
-    .collect())
-    .unwrap();
+    // println!("applying the 2nd batch!");
+    // tree.apply([
+    //     ("fuzz".to_string(), Op::Delete),
+    //     ("larry".to_string(), Op::Delete),
+    //     ("satoshi".to_string(), Op::Insert("nakamoto".into())),
+    // ]
+    // .into_iter()
+    // .collect())
+    // .unwrap();
 
     println!("pruning!");
     tree.prune(None).unwrap();

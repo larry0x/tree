@@ -1,5 +1,5 @@
 use {
-    crate::types::{Children, Hash, Nibble},
+    crate::types::{hash_child, hash_data, Children, Hash, Nibble},
     blake3::Hasher,
     cosmwasm_schema::cw_serde,
 };
@@ -80,14 +80,11 @@ impl Node {
         let mut hasher = Hasher::new();
 
         for child in &self.children {
-            hasher.update(&[child.index.byte()]);
-            hasher.update(child.hash.as_bytes());
+            hash_child(&mut hasher, child);
         }
 
-        if let Some(NodeData { key, value }) = &self.data {
-            hasher.update((key.as_bytes().len() as u16).to_be_bytes().as_slice());
-            hasher.update(key.as_bytes());
-            hasher.update(value.as_bytes());
+        if let Some(data) = &self.data {
+            hash_data(&mut hasher, data)
         }
 
         hasher.finalize().into()
