@@ -25,18 +25,18 @@ pub fn verify_non_membership(
     key: &str,
     proof: &Proof,
 ) -> Result<()> {
-    let last_nibble_pos = proof.len() - 1;
+    let proof_len = proof.len();
     let nibble_path = NibblePath::from(key.as_bytes().to_vec());
 
     let Some(node) = proof.first() else {
         return Err(VerificationError::ProofEmpty);
     };
 
-    if last_nibble_pos >= nibble_path.num_nibbles {
+    if proof_len > nibble_path.num_nibbles + 1 {
         return Err(VerificationError::ProofTooLong);
     }
 
-    if last_nibble_pos < nibble_path.num_nibbles && node.contains_child_at_index(nibble_path.get_nibble(last_nibble_pos)) {
+    if proof_len <= nibble_path.num_nibbles && node.has_child_at_index(nibble_path.get_nibble(proof_len - 1)) {
         return Err(VerificationError::UnexpectedChild);
     }
 

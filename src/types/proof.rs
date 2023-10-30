@@ -33,7 +33,7 @@ pub struct ProofNode {
 }
 
 impl ProofNode {
-    pub fn contains_child_at_index(&self, index: Nibble) -> bool {
+    pub fn has_child_at_index(&self, index: Nibble) -> bool {
         self.children
             .iter()
             .any(|child| child.index == index)
