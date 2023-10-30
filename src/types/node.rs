@@ -13,7 +13,7 @@ pub struct Child {
 }
 
 #[cw_serde]
-pub struct NodeData {
+pub struct Record {
     pub key: String,
     pub value: String,
 }
@@ -37,7 +37,7 @@ pub struct NodeData {
 pub struct Node {
     // TODO: replace this with BTreeMap<Nibble, Child> when possible
     pub children: Children,
-    pub data: Option<NodeData>,
+    pub data: Option<Record>,
 }
 
 impl Node {
@@ -55,7 +55,7 @@ impl Node {
     pub fn new_leaf(key: String, value: String) -> Self {
         Self {
             children: Children::new(vec![]),
-            data: Some(NodeData { key, value })
+            data: Some(Record { key, value })
         }
     }
 

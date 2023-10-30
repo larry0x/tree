@@ -1,7 +1,7 @@
 use {
     crate::{
         Child, GetResponse, Nibble, NibbleIterator, NibblePath, NibbleRange, NibbleRangeIterator,
-        Node, NodeData, NodeKey, NodeResponse, Op, OpResponse, OrphanResponse, Proof, ProofNode,
+        Node, Record, NodeKey, NodeResponse, Op, OpResponse, OrphanResponse, Proof, ProofNode,
         RootResponse, Set,
     },
     cosmwasm_std::{to_binary, Order, StdResult, Storage},
@@ -121,7 +121,7 @@ where
             let (nibble_path, op) = batch[0].clone();
             current_node.data = match op {
                 Op::Insert(value) => {
-                    Some(NodeData {
+                    Some(Record {
                         key: String::from_utf8(nibble_path.bytes.clone()).unwrap(),
                         value,
                     })
@@ -152,7 +152,7 @@ where
         // leaf node (has data but no children), but after applying the ops now
         // it has children, then the data may needs to be moved down the tree to
         // a new leaf node.
-        if let Some(NodeData { key, value }) = current_node.data.clone() {
+        if let Some(Record { key, value }) = current_node.data.clone() {
             if !current_node.children.is_empty() && key.as_bytes() != current_node_key.nibble_path.bytes {
                 current_node.data = None;
                 let nibble_path = NibblePath::from(key.as_bytes().to_vec());
@@ -376,7 +376,7 @@ where
 
         // if the node has data and the key matches the request key, then we
         // have found it
-        if let Some(NodeData { key, value }) = current_node.data.clone() {
+        if let Some(Record { key, value }) = current_node.data.clone() {
             if key.as_bytes() == nibble_iter.nibble_path().bytes {
                 let proof = if prove {
                     vec![ProofNode::from_node(current_node.clone(), None, true)]
@@ -481,7 +481,7 @@ fn execute_op_at_node(node_key: &NodeKey, node: &Node, nibble_path: &NibblePath)
         return true;
     }
 
-    if let Some(NodeData { key, .. }) = &node.data {
+    if let Some(Record { key, .. }) = &node.data {
         if key.as_bytes() == nibble_path.bytes {
             return true;
         }

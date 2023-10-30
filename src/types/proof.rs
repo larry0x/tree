@@ -1,5 +1,5 @@
 use {
-    crate::types::{hash_data, hash_proof_child, Children, Hash, Nibble, Node, NodeData},
+    crate::types::{hash_data, hash_proof_child, Children, Hash, Nibble, Node, Record},
     blake3::Hasher,
     cosmwasm_schema::cw_serde,
 };
@@ -41,7 +41,7 @@ impl From<Children> for Vec<ProofChild> {
 #[cw_serde]
 pub struct ProofNode {
     pub children: Vec<ProofChild>,
-    pub data: Option<NodeData>
+    pub data: Option<Record>
 }
 
 
@@ -68,7 +68,7 @@ impl ProofNode {
     }
 
     // TODO: refactor this code to make it less ugly??
-    pub fn hash(&self, maybe_child: Option<&ProofChild>, maybe_data: Option<&NodeData>) -> Hash {
+    pub fn hash(&self, maybe_child: Option<&ProofChild>, maybe_data: Option<&Record>) -> Hash {
         let mut hasher = Hasher::new();
 
         for child in &self.children {

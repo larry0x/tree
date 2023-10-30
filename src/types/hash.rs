@@ -1,5 +1,5 @@
 use {
-    crate::{Child, NodeData, ProofChild},
+    crate::{Child, Record, ProofChild},
     blake3::Hasher,
     schemars::JsonSchema,
     serde::{
@@ -21,7 +21,7 @@ pub(crate) fn hash_proof_child(hasher: &mut Hasher, child: &ProofChild) {
     hasher.update(child.hash.as_bytes());
 }
 
-pub(crate) fn hash_data(hasher: &mut Hasher, data: &NodeData) {
+pub(crate) fn hash_data(hasher: &mut Hasher, data: &Record) {
     hasher.update((data.key.as_bytes().len() as u16).to_be_bytes().as_slice());
     hasher.update(data.key.as_bytes());
     hasher.update(data.value.as_bytes());

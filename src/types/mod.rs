@@ -19,7 +19,7 @@ pub use {
     nibble::Nibble,
     nibble_path::{NibbleIterator, NibblePath},
     nibble_range::{NibbleRange, NibbleRangeIterator},
-    node::{Child, Node, NodeData},
+    node::{Child, Node, Record},
     node_key::NodeKey,
     op::{Op, OpResponse},
     proof::{Proof, ProofChild, ProofNode},

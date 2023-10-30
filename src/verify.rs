@@ -1,4 +1,4 @@
-use crate::{Hash, NibblePath, NodeData, Proof, ProofChild};
+use crate::{Hash, NibblePath, Record, Proof, ProofChild};
 
 pub fn verify_membership(
     root_hash: &Hash,
@@ -11,7 +11,7 @@ pub fn verify_membership(
     // compute the hash of the node that contains the data of interest
     // it should be the first element in the proof
     let node = proof.first().ok_or(VerificationError::ProofEmpty)?;
-    let data = NodeData {
+    let data = Record {
         key: key.into(),
         value: value.into(),
     };
@@ -112,7 +112,7 @@ type Result<T> = std::result::Result<T, VerificationError>;
 mod tests {
     use {
         crate::{
-            verify_membership, verify_non_membership, Hash, Nibble, NodeData, Proof, ProofChild,
+            verify_membership, verify_non_membership, Hash, Nibble, Record, Proof, ProofChild,
             ProofNode,
         },
         test_case::test_case,
@@ -199,7 +199,7 @@ mod tests {
         vec![
             ProofNode {
                 children: vec![],
-                data: Some(NodeData {
+                data: Some(Record {
                     key: "food".into(),
                     value: "ramen".into(),
                 }),
