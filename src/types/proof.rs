@@ -36,8 +36,7 @@ impl ProofNode {
     pub fn contains_child_at_index(&self, index: Nibble) -> bool {
         self.children
             .iter()
-            .find(|child| child.index == index)
-            .is_some()
+            .any(|child| child.index == index)
     }
 
     // TODO: refactor this code to make it less ugly??

@@ -32,14 +32,12 @@ pub fn verify_non_membership(
         return Err(VerificationError::ProofEmpty);
     };
 
-    if last_nibble_pos > nibble_path.num_nibbles {
+    if last_nibble_pos >= nibble_path.num_nibbles {
         return Err(VerificationError::ProofTooLong);
     }
 
-    if last_nibble_pos < nibble_path.num_nibbles {
-        if node.contains_child_at_index(nibble_path.get_nibble(last_nibble_pos)) {
-            return Err(VerificationError::UnexpectedChild);
-        }
+    if last_nibble_pos < nibble_path.num_nibbles && node.contains_child_at_index(nibble_path.get_nibble(last_nibble_pos)) {
+        return Err(VerificationError::UnexpectedChild);
     }
 
     if let Some(data) = &node.data {
@@ -63,6 +61,7 @@ fn compute_and_check_root_hash(
 
     // traverse up the tree and compute the hash of each node
     // eventually we should reach the root
+    #[allow(clippy::needless_range_loop)]
     for i in 1..proof_len {
         let node = &proof[i];
         let child = ProofChild {
