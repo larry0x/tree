@@ -11,6 +11,7 @@ pub struct NibbleRange {
 /// Assume we have a list of nibble paths, which can be of variable lengths,
 /// ordered ascendingly (important!). For example:
 ///
+/// ```plain
 ///         0123456
 ///         0135
 ///         013568
@@ -19,6 +20,7 @@ pub struct NibbleRange {
 ///         13579abc
 ///         ^
 ///         nibble_idx
+/// ```
 ///
 /// In this example, we are looking at the very first nibble of each nibble path,
 /// so nibble_idx = 0. We're currently looking at the 5th nibble path in the

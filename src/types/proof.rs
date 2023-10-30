@@ -33,6 +33,13 @@ pub struct ProofNode {
 }
 
 impl ProofNode {
+    pub fn contains_child_at_index(&self, index: Nibble) -> bool {
+        self.children
+            .iter()
+            .find(|child| child.index == index)
+            .is_some()
+    }
+
     // TODO: refactor this code to make it less ugly??
     pub fn hash(&self, maybe_child: Option<&ProofChild>, maybe_data: Option<&NodeData>) -> Hash {
         let mut hasher = Hasher::new();
