@@ -67,11 +67,13 @@ impl ProofNode {
     // TODO: refactor this code to make it less ugly??
     pub fn hash(&self, maybe_child: Option<&ProofChild>, maybe_data: Option<&Record>) -> Hash {
         let mut hasher = Hasher::new();
+        let mut maybe_child_hashed = false;
 
         for child in &self.children {
             if let Some(c) = maybe_child {
-                if c.index < child.index {
+                if !maybe_child_hashed && c.index < child.index {
                     hash_proof_child(&mut hasher, c);
+                    maybe_child_hashed = true;
                 }
             }
 
@@ -79,11 +81,7 @@ impl ProofNode {
         }
 
         if let Some(c) = maybe_child {
-            if let Some(child) = self.children.last() {
-                if c.index > child.index {
-                    hash_proof_child(&mut hasher, c);
-                }
-            } else {
+            if !maybe_child_hashed {
                 hash_proof_child(&mut hasher, c);
             }
         }
