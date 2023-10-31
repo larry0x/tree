@@ -87,7 +87,14 @@ where
         &mut self,
         version: u64,
         current_node_key: &NodeKey,
-        batch: &[(NibblePath, Op)],
+        // some basic rust knowledge here: the following are different!
+        //
+        // mut batch: &T
+        // this means that `batch` can be pointed to a different T instance
+        //
+        // batch: &mut T
+        // this means that the T instance that `batch` points to can be mutated
+        mut batch: &[(NibblePath, Op)],
     ) -> Result<OpResponse> {
         // attempt to load the node. if not found, we simply create a new empty
         // node (no children, no data)
@@ -104,25 +111,31 @@ where
         // one level up)
         let mut updated_child_nodes = HashMap::new();
 
-        // if there is only one item in the batch AND one of the following is
-        // satisfied, then we apply the op at the current node:
-        // - the current node's nibble path matches exactly the nibble path we
-        //   want to write to
+        // what this part means is a bit hard to explain...
+        //
+        // basically if there is a key in the batch that is an exact match with
+        // the current node's nibble path, then it is necessarily the first item
+        // in the batch (I don't have a rigorous proof, but empirically this is
+        // true)
+        //
+        // if this is the case, we apply the op at the current node, and remove
+        // this item from the batch.
+        if batch[0].0 == current_node_key.nibble_path {
+            apply_op_to_node(&mut current_node, &batch[0]);
+            batch = &batch[1..];
+        }
+
+        // now, if there is only one item left in the batch AND one of the
+        // following is satisfied, then we apply the op at the current node:
+        //
         // - the current node is a leaf, and the key matches exactly the nibble
         //   path we want to write to
         // - the current node has neither any child nor data
         //
         // if this condition is not satisfied, we need to dispatch the ops to
         // the current node's children.
-        if batch.len() == 1 && execute_op_at_node(current_node_key, &current_node, &batch[0].0) {
-            let (nibble_path, op) = batch[0].clone();
-            current_node.data = match op {
-                Op::Insert(value) => Some(Record {
-                    key: String::from_utf8(nibble_path.bytes.clone()).unwrap(),
-                    value,
-                }),
-                Op::Delete => None,
-            };
+        if batch.len() == 1 && execute_op_at_node(&current_node, &batch[0].0) {
+            apply_op_to_node(&mut current_node, &batch[0]);
         } else {
             let nibble_range_iter = NibbleRangeIterator::new(batch, current_node_key.depth());
             for NibbleRange { nibble, start, end } in nibble_range_iter {
@@ -650,11 +663,7 @@ fn key_in_range(key: &str, min: Option<&NibblePath>) -> bool {
     true
 }
 
-fn execute_op_at_node(node_key: &NodeKey, node: &Node, nibble_path: &NibblePath) -> bool {
-    if &node_key.nibble_path == nibble_path {
-        return true;
-    }
-
+fn execute_op_at_node(node: &Node, nibble_path: &NibblePath) -> bool {
     if let Some(Record { key, .. }) = &node.data {
         if key.as_bytes() == nibble_path.bytes {
             return true;
@@ -666,6 +675,16 @@ fn execute_op_at_node(node_key: &NodeKey, node: &Node, nibble_path: &NibblePath)
     }
 
     false
+}
+
+fn apply_op_to_node(node: &mut Node, (nibble_path, op): &(NibblePath, Op)) {
+    node.data = match op {
+        Op::Insert(value) => Some(Record {
+            key: String::from_utf8(nibble_path.bytes.clone()).unwrap(),
+            value: value.clone(),
+        }),
+        Op::Delete => None,
+    };
 }
 
 fn unwrap_version(store: &dyn Storage, version: Option<u64>) -> StdResult<u64> {
