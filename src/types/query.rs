@@ -12,7 +12,6 @@ pub struct RootResponse {
 
 #[cw_serde]
 pub struct GetResponse {
-    pub version: u64,
     pub key: String,
     /// None if not found
     pub value: Option<String>,

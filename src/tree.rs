@@ -301,12 +301,7 @@ where
 
     pub fn root(&self, version: Option<u64>) -> Result<RootResponse> {
         let version = unwrap_version(&self.store, version)?;
-
-        let root_node_key = NodeKey {
-            version,
-            nibble_path: NibblePath::empty(),
-        };
-
+        let root_node_key = NodeKey::root(version);
         let Some(root_node) = NODES.may_load(&self.store, &root_node_key)? else {
             return Err(TreeError::RootNodeNotFound { version });
         };
@@ -333,7 +328,7 @@ where
             None
         };
 
-        Ok(GetResponse { version, key, value, proof })
+        Ok(GetResponse { key, value, proof })
     }
 
     fn get_at(
@@ -422,6 +417,30 @@ where
         Ok((value, proof))
     }
 
+    /// This function signature is inspired by `cosmwasm_std::Storage` trait's
+    /// `range` method.
+    ///
+    /// Notes:
+    /// - The bound `start` is inclusive and `end` is exclusive;
+    /// - `start` should be lexicographically smaller than `end`, regardless of
+    ///   the iteration `order`. If `start` >= `end`, an empty iterator is
+    ///   generated.
+    pub fn iterate<'a>(
+        &'a self,
+        min: Option<&str>,
+        max: Option<&str>,
+        order: Order,
+        version: Option<u64>,
+    ) -> Result<TreeIterator<'a, S>> {
+        let version = unwrap_version(&self.store, version)?;
+        let root_node_key = NodeKey::root(version);
+        let Some(root_node) = NODES.may_load(&self.store, &root_node_key)? else {
+            return Err(TreeError::RootNodeNotFound { version });
+        };
+
+        Ok(TreeIterator::new(&self.store, min, max, order, root_node))
+    }
+
     pub fn node(&self, node_key: NodeKey) -> Result<Option<NodeResponse>> {
         Ok(NODES
             .may_load(&self.store, &node_key)?
@@ -474,6 +493,176 @@ where
             })
             .collect()
     }
+}
+
+pub struct TreeIterator<'a, S> {
+    store: &'a S,
+    min: Option<NibblePath>,
+    max: Option<NibblePath>,
+    order: Order,
+    visited_nibbles: NibblePath,
+    visited_nodes: Vec<Node>,
+}
+
+impl<'a, S> TreeIterator<'a, S> {
+    pub fn new(
+        store: &'a S,
+        min: Option<&str>,
+        max: Option<&str>,
+        order: Order,
+        root_node: Node,
+    ) -> Self {
+        Self {
+            store,
+            min: min.map(|s| NibblePath::from(s.as_bytes().to_vec())),
+            max: max.map(|s| NibblePath::from(s.as_bytes().to_vec())),
+            order,
+            visited_nibbles: NibblePath::empty(),
+            visited_nodes: vec![root_node],
+        }
+    }
+}
+
+impl<'a, S> Iterator for TreeIterator<'a, S>
+where
+    S: Storage,
+{
+    type Item = (String, String);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        iterate_at(
+            self.store,
+            self.min.as_ref(),
+            self.max.as_ref(),
+            self.order,
+            &mut self.visited_nibbles,
+            &mut self.visited_nodes,
+            None,
+        )
+    }
+}
+
+fn iterate_at(
+    store: &dyn Storage,
+    min: Option<&NibblePath>,
+    max: Option<&NibblePath>,
+    order: Order,
+    visited_nibbles: &mut NibblePath,
+    visited_nodes: &mut Vec<Node>,
+    start_after_index: Option<Nibble>,
+) -> Option<(String, String)> {
+    // TODO: avoid the cloning here
+    let Some(current_node) = visited_nodes.last().cloned() else {
+        return None;
+    };
+
+    // going through the node's children. pushing the first one that's in
+    // the range into the stack
+    for child in iter_with_order(current_node.children, order) {
+        if skip(child.index, start_after_index, order) {
+            continue;
+        }
+
+        let child_nibble_path = visited_nibbles.child(child.index);
+        if !nibbles_in_range(&child_nibble_path, min, max) {
+            continue;
+        }
+
+        let child_node_key = NodeKey::new(child.version, child_nibble_path);
+        let child_node = NODES.load(store, &child_node_key).unwrap(); // TODO
+
+        visited_nibbles.push(child.index);
+        visited_nodes.push(child_node.clone());
+
+        // if the child node has data, and the key is in range, then we stop the
+        // recursion and return this data
+        if let Some(Record { key, value }) = child_node.data {
+            // we only need to compare the key with the min. we don't need to
+            // compare with the max because any key greater than max should have
+            // already been dropped when comparing `nibbles_in_range`
+            if key_in_range(&key, min) {
+                return Some((key, value));
+            }
+        }
+
+        // if the current node has no data, then we do a depth-first search,
+        // exploring the children of this child
+        if let Some(record) = iterate_at(store, min, max, order, visited_nibbles, visited_nodes, None) {
+            return Some(record);
+        }
+    }
+
+    // now we've gone over all the childs of the current node, and still hasn't
+    // returned. this means there is no data found in any of the subtrees below
+    // the current node. we need to go up one level and search in the siblings.
+    let (Some(index), _) = (visited_nibbles.pop(), visited_nodes.pop()) else {
+        return None;
+    };
+
+    iterate_at(store, min, max, order, visited_nibbles, visited_nodes, Some(index))
+}
+
+fn iter_with_order<'a, I>(items: I, order: Order) -> Box<dyn Iterator<Item = I::Item> + 'a>
+where
+    I: IntoIterator,
+    I::IntoIter: DoubleEndedIterator + 'a,
+{
+    match order {
+        Order::Ascending => Box::new(items.into_iter()),
+        Order::Descending => Box::new(items.into_iter().rev()),
+    }
+}
+
+fn skip(index: Nibble, start_after: Option<Nibble>, order: Order) -> bool {
+    let Some(after) = start_after else {
+        return false;
+    };
+
+    match order {
+        Order::Ascending => index <= after,
+        Order::Descending => index >= after,
+    }
+}
+
+fn nibbles_in_range(
+    nibble_path: &NibblePath,
+    min: Option<&NibblePath>,
+    max: Option<&NibblePath>,
+) -> bool {
+    // the min bound is a bit complex
+    //
+    // for example, if nibble_path = [12], min = [12345]
+    // if we just compare the bytes, we get nibble_path < min and thus out of
+    // range. however we don't want to discard this nibble_path just yet,
+    // because if we go down the tree, we may find a node >= min
+    //
+    // to fix this, we crop min to the same length as nibble_path and then do
+    // the comparison
+    if let Some(min) = min {
+        println!("comparing nibble_path={nibble_path:?} with min_cropped={:?}", min.crop(nibble_path.num_nibbles));
+        if nibble_path.bytes < min.crop(nibble_path.num_nibbles).bytes {
+            return false;
+        }
+    }
+
+    // the max bound is simpler, we just compare the bytes
+    if let Some(max) = max {
+        if nibble_path.bytes >= max.bytes {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn key_in_range(key: &str, min: Option<&NibblePath>) -> bool {
+    if let Some(min) = min {
+        if key.as_bytes() < min.bytes.as_slice() {
+            return false;
+        }
+    }
+
+    true
 }
 
 fn execute_op_at_node(node_key: &NodeKey, node: &Node, nibble_path: &NibblePath) -> bool {

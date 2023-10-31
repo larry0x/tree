@@ -64,6 +64,22 @@ impl NibblePath {
         popped_byte.map(Nibble::new)
     }
 
+    /// Return a new NibblePath whose length is at most `n`. Nibbles above `n`
+    /// are dropped. Only works if `n` < current length.
+    pub(crate) fn crop(&self, n: usize) -> Self {
+        assert!(n < self.num_nibbles);
+
+        let mut bytes = self.bytes[..(n / 2)].to_vec();
+        if n % 2 != 0 {
+            bytes.push(self.bytes[n / 2] & 0xf0);
+        }
+
+        Self {
+            num_nibbles: n,
+            bytes,
+        }
+    }
+
     // panics if index is out of range
     pub fn get_nibble(&self, i: usize) -> Nibble {
         assert!(i < self.num_nibbles);
