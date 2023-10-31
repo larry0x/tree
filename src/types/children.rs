@@ -59,13 +59,10 @@ impl Children {
     }
 
     /// If there is one and only one child, return a reference to this child.
-    /// Otherwise (no child or more than one children), return None.
-    pub fn get_only(&self) -> Option<&Child> {
-        if self.0.len() == 1 {
-            Some(&self.0[0])
-        } else {
-            None
-        }
+    /// Otherwise (no child or more than one children), panic.
+    pub fn get_only(&self) -> &Child {
+        assert!(self.count() == 1);
+        &self.0[0]
     }
 
     pub fn insert(&mut self, new_child: Child) {

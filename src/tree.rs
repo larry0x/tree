@@ -163,47 +163,36 @@ where
             }
         }
 
-        // finally, everything is done with the current node, we need to reply
-        // the outcome to our parent node. the rules are:
-        // - if the current node has neither any child nor data, then it should
-        //   be deleted
-        // - if the current node has no data and exactly 1 child, and this child
-        //   is a leaf node, then the path can be collapsed (i.e. the current
-        //   node deleted, and that child leaf node moved on level up)
-        // - if the current node has been updated, we pass the updated node to
-        //   the parent who will recompute the hash
-        // - if the current node has NOT been changed, we inform the parent node
-        //   about this so it doesn't need to recompute the hash
-        if current_node.data.is_none() {
-            if current_node.children.is_empty() {
-                return Ok(OpResponse::Deleted);
-            }
+        // if the current node has neither any child nor data, then it should be
+        // deleted
+        if current_node.is_empty() {
+            return Ok(OpResponse::Deleted);
+        }
 
-            if let Some(child) = current_node.children.get_only() {
-                // the current node has only 1 child. this child may have just
-                // been updated, in which case it should be in the `updated_child_nodes`
-                // map, or not updated, in which case it needs to be loaded from
-                // the store
-                if let Some(child_node) = updated_child_nodes.remove(&child.index) {
-                    if child_node.is_leaf() {
-                        return Ok(OpResponse::Updated(child_node));
-                    }
-                } else {
-                    let child_node_key = current_node_key.child(child.version, child.index);
-                    let child_node = NODES.load(&self.store, &child_node_key)?;
-                    if child_node.is_leaf() {
-                        self.mark_node_as_orphaned(version, &child_node_key)?;
-                        return Ok(OpResponse::Updated(child_node));
-                    }
-                };
-            } else {
-                // now we know the current node won't be deleted or collapsed,
-                // we can write the updated child nodes
-                for (nibble, node) in updated_child_nodes {
-                    let nibble_path = current_node_key.nibble_path.child(nibble);
-                    self.create_node(version, nibble_path, &node)?;
+        // if the current node has no data and exactly 1 child, and this child
+        // is a leaf node, then the path can be collapsed (i.e. the current node
+        // deleted, and that child leaf node moved on level up)
+        if current_node.data.is_none() && current_node.children.count() == 1 {
+            let child = current_node.children.get_only();
+            if let Some(child_node) = updated_child_nodes.get(&child.index) {
+                if child_node.is_leaf() {
+                    return Ok(OpResponse::Updated(child_node.clone()));
                 }
-            }
+            } else {
+                let child_node_key = current_node_key.child(child.version, child.index);
+                let child_node = NODES.load(&self.store, &child_node_key)?;
+                if child_node.is_leaf() {
+                    self.mark_node_as_orphaned(version, &child_node_key)?;
+                    return Ok(OpResponse::Updated(child_node));
+                }
+            };
+        }
+
+        // now we know the current node won't be deleted or collapsed,
+        // we can write the updated child nodes
+        for (nibble, node) in updated_child_nodes {
+            let nibble_path = current_node_key.nibble_path.child(nibble);
+            self.create_node(version, nibble_path, &node)?;
         }
 
         if current_node != current_node_before {
