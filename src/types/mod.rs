@@ -11,8 +11,6 @@ mod op;
 mod proof;
 mod query;
 
-use hash::{hash_child, hash_data, hash_proof_child};
-
 pub use {
     children::Children,
     hash::{Hash, HASH_LEN},
@@ -25,3 +23,5 @@ pub use {
     proof::{Proof, ProofChild, ProofNode},
     query::{GetResponse, NodeResponse, OrphanResponse, RootResponse},
 };
+
+use hash::{hash_child, hash_data, hash_proof_child};

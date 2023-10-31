@@ -55,9 +55,7 @@ impl Children {
     }
 
     pub fn get(&self, index: Nibble) -> Option<&Child> {
-        self.0
-            .iter()
-            .find(|child| child.index == index)
+        self.0.iter().find(|child| child.index == index)
     }
 
     /// If there is one and only one child, return a reference to this child.

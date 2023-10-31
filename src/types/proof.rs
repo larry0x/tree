@@ -41,9 +41,8 @@ impl From<Children> for Vec<ProofChild> {
 #[cw_serde]
 pub struct ProofNode {
     pub children: Vec<ProofChild>,
-    pub data: Option<Record>
+    pub data: Option<Record>,
 }
-
 
 impl ProofNode {
     pub fn from_node(mut node: Node, drop_child_at_index: Option<Nibble>, drop_data: bool) -> Self {
@@ -62,9 +61,7 @@ impl ProofNode {
     }
 
     pub fn has_child_at_index(&self, index: Nibble) -> bool {
-        self.children
-            .iter()
-            .any(|child| child.index == index)
+        self.children.iter().any(|child| child.index == index)
     }
 
     // TODO: refactor this code to make it less ugly??
@@ -94,7 +91,7 @@ impl ProofNode {
         match (maybe_data, &self.data) {
             (Some(d), None) | (Some(d), Some(_)) | (None, Some(d)) => {
                 hash_data(&mut hasher, d);
-            }
+            },
             _ => (),
         }
 

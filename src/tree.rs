@@ -1,7 +1,7 @@
 use {
     crate::{
         Child, GetResponse, Nibble, NibbleIterator, NibblePath, NibbleRange, NibbleRangeIterator,
-        Node, Record, NodeKey, NodeResponse, Op, OpResponse, OrphanResponse, Proof, ProofNode,
+        Node, NodeKey, NodeResponse, Op, OpResponse, OrphanResponse, Proof, ProofNode, Record,
         RootResponse, Set,
     },
     cosmwasm_std::{to_binary, Order, StdResult, Storage},
@@ -120,12 +120,10 @@ where
         if batch.len() == 1 && execute_op_at_node(current_node_key, &current_node, &batch[0].0) {
             let (nibble_path, op) = batch[0].clone();
             current_node.data = match op {
-                Op::Insert(value) => {
-                    Some(Record {
-                        key: String::from_utf8(nibble_path.bytes.clone()).unwrap(),
-                        value,
-                    })
-                },
+                Op::Insert(value) => Some(Record {
+                    key: String::from_utf8(nibble_path.bytes.clone()).unwrap(),
+                    value,
+                }),
                 Op::Delete => None,
             };
         } else {
@@ -365,7 +363,9 @@ where
                     },
                 };
             } else {
-                return Err(TreeError::NonRootNodeNotFound { node_key: current_node_key });
+                return Err(TreeError::NonRootNodeNotFound {
+                    node_key: current_node_key,
+                });
             }
         };
 
@@ -639,7 +639,6 @@ fn nibbles_in_range(
     // to fix this, we crop min to the same length as nibble_path and then do
     // the comparison
     if let Some(min) = min {
-        println!("comparing nibble_path={nibble_path:?} with min_cropped={:?}", min.crop(nibble_path.num_nibbles));
         if nibble_path.bytes < min.crop(nibble_path.num_nibbles).bytes {
             return false;
         }

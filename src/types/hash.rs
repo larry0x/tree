@@ -1,5 +1,5 @@
 use {
-    crate::{Child, Record, ProofChild},
+    crate::{Child, ProofChild, Record},
     blake3::Hasher,
     schemars::JsonSchema,
     serde::{

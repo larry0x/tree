@@ -1,11 +1,6 @@
-use crate::{Hash, NibblePath, Record, Proof, ProofChild};
+use crate::{Hash, NibblePath, Proof, ProofChild, Record};
 
-pub fn verify_membership(
-    root_hash: &Hash,
-    key: &str,
-    value: &str,
-    proof: &Proof,
-) -> Result<()> {
+pub fn verify_membership(root_hash: &Hash, key: &str, value: &str, proof: &Proof) -> Result<()> {
     let nibble_path = NibblePath::from(key.as_bytes().to_vec());
 
     // compute the hash of the node that contains the data of interest
@@ -20,11 +15,7 @@ pub fn verify_membership(
     compute_and_check_root_hash(root_hash, proof, nibble_path, hash)
 }
 
-pub fn verify_non_membership(
-    root_hash: &Hash,
-    key: &str,
-    proof: &Proof,
-) -> Result<()> {
+pub fn verify_non_membership(root_hash: &Hash, key: &str, proof: &Proof) -> Result<()> {
     let proof_len = proof.len();
     let nibble_path = NibblePath::from(key.as_bytes().to_vec());
 
@@ -112,8 +103,8 @@ type Result<T> = std::result::Result<T, VerificationError>;
 mod tests {
     use {
         crate::{
-            verify_membership, verify_non_membership, Hash, Nibble, Record, Proof, ProofChild,
-            ProofNode,
+            verify_membership, verify_non_membership, Hash, Nibble, Proof, ProofChild, ProofNode,
+            Record,
         },
         test_case::test_case,
     };
