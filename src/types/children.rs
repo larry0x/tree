@@ -81,11 +81,10 @@ impl Children {
         self.0.push(new_child);
     }
 
+    // note: attempting to delete a non-existent child results no-op, not error
     pub fn remove(&mut self, index: Nibble) {
-        let Some(pos) = self.0.iter().position(|child| child.index == index) else {
-            panic!("child not found with index {index}");
-        };
-
-        self.0.remove(pos);
+        if let Some(pos) = self.0.iter().position(|child| child.index == index) {
+            self.0.remove(pos);
+        }
     }
 }
