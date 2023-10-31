@@ -21,10 +21,10 @@ fn main() {
     .unwrap();
 
     // adjust min, max, and order as you like to test things out
+    let order = Order::Ascending;
     let min = None;
     let max = None;
-    let order = Order::Ascending;
-    let mut iter = tree.iterate(min, max, order, None).unwrap();
+    let mut iter = tree.iterate(order, min, max, None).unwrap();
 
     // should print Some((food, ramen))
     let record = iter.next();

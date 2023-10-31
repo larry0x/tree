@@ -427,9 +427,9 @@ where
     ///   generated.
     pub fn iterate<'a>(
         &'a self,
+        order: Order,
         min: Option<&str>,
         max: Option<&str>,
-        order: Order,
         version: Option<u64>,
     ) -> Result<TreeIterator<'a, S>> {
         let version = unwrap_version(&self.store, version)?;
@@ -438,7 +438,7 @@ where
             return Err(TreeError::RootNodeNotFound { version });
         };
 
-        Ok(TreeIterator::new(&self.store, min, max, order, root_node))
+        Ok(TreeIterator::new(&self.store, order, min, max, root_node))
     }
 
     pub fn node(&self, node_key: NodeKey) -> Result<Option<NodeResponse>> {
@@ -497,9 +497,9 @@ where
 
 pub struct TreeIterator<'a, S> {
     store: &'a S,
+    order: Order,
     min: Option<NibblePath>,
     max: Option<NibblePath>,
-    order: Order,
     visited_nibbles: NibblePath,
     visited_nodes: Vec<Node>,
 }
@@ -507,16 +507,16 @@ pub struct TreeIterator<'a, S> {
 impl<'a, S> TreeIterator<'a, S> {
     pub fn new(
         store: &'a S,
+        order: Order,
         min: Option<&str>,
         max: Option<&str>,
-        order: Order,
         root_node: Node,
     ) -> Self {
         Self {
             store,
+            order,
             min: min.map(|s| NibblePath::from(s.as_bytes().to_vec())),
             max: max.map(|s| NibblePath::from(s.as_bytes().to_vec())),
-            order,
             visited_nibbles: NibblePath::empty(),
             visited_nodes: vec![root_node],
         }
@@ -532,9 +532,9 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         iterate_at(
             self.store,
+            self.order,
             self.min.as_ref(),
             self.max.as_ref(),
-            self.order,
             &mut self.visited_nibbles,
             &mut self.visited_nodes,
             None,
@@ -544,9 +544,9 @@ where
 
 fn iterate_at(
     store: &dyn Storage,
+    order: Order,
     min: Option<&NibblePath>,
     max: Option<&NibblePath>,
-    order: Order,
     visited_nibbles: &mut NibblePath,
     visited_nodes: &mut Vec<Node>,
     start_after_index: Option<Nibble>,
@@ -587,7 +587,7 @@ fn iterate_at(
 
         // if the current node has no data, then we do a depth-first search,
         // exploring the children of this child
-        if let Some(record) = iterate_at(store, min, max, order, visited_nibbles, visited_nodes, None) {
+        if let Some(record) = iterate_at(store, order, min, max, visited_nibbles, visited_nodes, None) {
             return Some(record);
         }
     }
@@ -599,7 +599,7 @@ fn iterate_at(
         return None;
     };
 
-    iterate_at(store, min, max, order, visited_nibbles, visited_nodes, Some(index))
+    iterate_at(store, order, min, max, visited_nibbles, visited_nodes, Some(index))
 }
 
 fn iter_with_order<'a, I>(items: I, order: Order) -> Box<dyn Iterator<Item = I::Item> + 'a>
