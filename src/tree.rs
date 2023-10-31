@@ -51,8 +51,12 @@ where
     ///
     /// Note: keys must not be empty, but we don't assert it here.
     pub fn apply(&mut self, batch: Batch) -> Result<()> {
-        let (old_version, new_version) = self.increment_version()?;
+        let old_version = LAST_COMMITTED_VERSION.load(&self.store)?;
         let old_root_key = NodeKey::root(old_version);
+
+        // note: we don't save the new version to store just yet, unless we know
+        // the root node has been changed.
+        let new_version = old_version + 1;
 
         // collect the batch into a sorted Vec, also converting the string keys
         // to NibblePaths
@@ -67,17 +71,22 @@ where
         // recursively apply the batch, starting from the root (depth = 0)
         match self.apply_at(new_version, &old_root_key, batch.as_slice())? {
             OpResponse::Updated(updated_root_node) => {
+                self.set_version(new_version)?;
                 self.create_node(new_version, NibblePath::empty(), &updated_root_node)?;
                 if old_version > 0 {
                     self.mark_node_as_orphaned(new_version, &old_root_key)?;
                 }
             },
             OpResponse::Deleted => {
+                self.set_version(new_version)?;
                 if old_version > 0 {
                     self.mark_node_as_orphaned(new_version, &old_root_key)?;
                 }
             },
-            OpResponse::Unchanged => (),
+            OpResponse::Unchanged => {
+                // do nothing. note that we don't increment the version if the
+                // root node is not changed.
+            },
         }
 
         Ok(())
@@ -288,12 +297,8 @@ where
         ORPHANS.insert(&mut self.store, (orphaned_since_version, node_key))
     }
 
-    fn increment_version(&mut self) -> StdResult<(u64, u64)> {
-        let old_version = LAST_COMMITTED_VERSION.load(&self.store)?;
-        let new_version = old_version + 1;
-        LAST_COMMITTED_VERSION.save(&mut self.store, &new_version)?;
-
-        Ok((old_version, new_version))
+    fn set_version(&mut self, version: u64) -> StdResult<()> {
+        LAST_COMMITTED_VERSION.save(&mut self.store, &version)
     }
 
     pub fn root(&self, version: Option<u64>) -> Result<RootResponse> {
