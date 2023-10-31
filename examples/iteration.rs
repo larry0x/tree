@@ -27,30 +27,23 @@ fn main() {
     let mut iter = tree.iterate(order, min, max, None).unwrap();
 
     // should print Some((food, ramen))
-    let record = iter.next();
-    dbg!(record);
+    dbg!(iter.next());
 
     // should print Some((fuzz, buzz))
-    let record = iter.next();
-    dbg!(record);
+    dbg!(iter.next());
 
     // should print Some((jake, shepherd))
-    let record = iter.next();
-    dbg!(record);
+    dbg!(iter.next());
 
     // should print Some((larry, engineer))
-    let record = iter.next();
-    dbg!(record);
+    dbg!(iter.next());
 
     // should print Some((pumpkin, cat))
-    let record = iter.next();
-    dbg!(record);
+    dbg!(iter.next());
 
     // should print Some((satoshi, nakamoto))
-    let record = iter.next();
-    dbg!(record);
+    dbg!(iter.next());
 
     // should print None
-    let record = iter.next();
-    dbg!(record);
+    dbg!(iter.next());
 }
