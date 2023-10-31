@@ -69,7 +69,7 @@ where
             .collect::<Vec<_>>();
 
         // recursively apply the batch, starting from the root (depth = 0)
-        match self.apply_at(new_version, &old_root_key, batch.as_slice())? {
+        match self.apply_at(new_version, &old_root_key, None, &batch)? {
             OpResponse::Updated(updated_root_node) => {
                 self.set_version(new_version)?;
                 self.create_node(new_version, NibblePath::empty(), &updated_root_node)?;
@@ -96,6 +96,7 @@ where
         &mut self,
         version: u64,
         current_node_key: &NodeKey,
+        current_node: Option<Node>,
         // some basic rust knowledge here: the following are different!
         //
         // mut batch: &T
@@ -107,11 +108,15 @@ where
     ) -> Result<OpResponse> {
         // attempt to load the node. if not found, we simply create a new empty
         // node (no children, no data)
-        let current_node_before = NODES.may_load(&self.store, current_node_key)?.unwrap_or_else(Node::new);
+        let mut current_node = if let Some(node) = current_node {
+            node
+        } else {
+            NODES.may_load(&self.store, current_node_key)?.unwrap_or_else(Node::new)
+        };
 
         // make a mutable clone of the current node. after we've executed the
         // ops, we will compare with the original whether it has been changed
-        let mut current_node = current_node_before.clone();
+        let current_node_before = current_node.clone();
 
         // a cache of the current node's children that have been changed.
         // we don't want to write these nodes to store immediately, because if
@@ -119,6 +124,16 @@ where
         // collapse the path (i.e. delete the current node, move the only child
         // one level up)
         let mut updated_child_nodes = HashMap::new();
+
+        // if the node has data, and the data's key doesn't exactly equal the
+        // node's nibble path, we take it out and insert it into the batch.
+        // we call this the "dangling_data"
+        let mut dangling_data = None;
+        if let Some(Record { key, .. }) = &current_node.data {
+            if key.as_bytes() != current_node_key.nibble_path.bytes {
+                dangling_data = current_node.data.take();
+            }
+        }
 
         // what this part means is a bit hard to explain...
         //
@@ -129,10 +144,39 @@ where
         //
         // if this is the case, we apply the op at the current node, and remove
         // this item from the batch.
+        //
+        // additionally, if this node originally had data is will be overwritten
+        // here, we take it out as "dangling data" and insert it later
         if batch[0].0 == current_node_key.nibble_path {
             apply_op_to_node(&mut current_node, &batch[0]);
             batch = &batch[1..];
         }
+
+        // insert the dangling data into the batch
+        //
+        // note: only insert if the key isn't already in the batch. if it's
+        // already in, it will be overwritten anyways so we just discard it
+        //
+        // this requires copying the batch in memory (slice --> vec) which is
+        // slow, but i don't have a good idea to improve on this
+        // basically we have to do this to allow iteration (if we hash the keys,
+        // there would be no dangling data but no iteration either). it's a
+        // tradeoff between performance and feature, and is one that we're
+        // willing to make (iteration is such as important feature)
+        let mut owned_batch;
+        let batch = if let Some(Record { key, value }) = dangling_data {
+            owned_batch = batch.to_vec();
+            match batch.binary_search_by_key(&key.as_bytes(), |(nibble_path, _)| &nibble_path.bytes) {
+                Err(pos) => {
+                    let nibble_path = NibblePath::from(key.as_bytes().to_vec());
+                    owned_batch.insert(pos, (nibble_path, Op::Insert(value.clone())));
+                },
+                Ok(_) => (),
+            };
+            owned_batch.as_slice()
+        } else {
+            batch
+        };
 
         // now, if there is only one item left in the batch AND one of the
         // following is satisfied, then we apply the op at the current node:
@@ -143,7 +187,7 @@ where
         //
         // if this condition is not satisfied, we need to dispatch the ops to
         // the current node's children.
-        if batch.len() == 1 && execute_op_at_node(&current_node, &batch[0].0) {
+        if batch.len() == 1 && current_node.is_empty() {
             apply_op_to_node(&mut current_node, &batch[0]);
         } else {
             let nibble_range_iter = NibbleRangeIterator::new(batch, current_node_key.depth());
@@ -154,32 +198,6 @@ where
                     &mut current_node,
                     nibble,
                     &batch[start..=end],
-                    &mut updated_child_nodes,
-                )?;
-            }
-        }
-
-        // Now that we have finished executing the ops, we need to look at a
-        // complexity not present in Ethereum's Patricia Merkle tree (PMT) or
-        // Diem's Jellyfish Merkle tree (JMT). That is, our tree's internal
-        // nodes may have data too. In contrary, in PMT/JMT, data are only found
-        // in leaf nodes.
-        //
-        // The complexity is this: if the current node had previously been a
-        // leaf node (has data but no children), but after applying the ops now
-        // it has children, then the data may needs to be moved down the tree to
-        // a new leaf node.
-        if let Some(Record { key, value }) = current_node.data.clone() {
-            if !current_node.children.is_empty() && key.as_bytes() != current_node_key.nibble_path.bytes {
-                current_node.data = None;
-                let nibble_path = NibblePath::from(key.as_bytes().to_vec());
-                let nibble = nibble_path.get_nibble(current_node_key.depth());
-                self.apply_at_index(
-                    version,
-                    current_node_key,
-                    &mut current_node,
-                    nibble,
-                    &[(nibble_path, Op::Insert(value.clone()))],
                     &mut updated_child_nodes,
                 )?;
             }
@@ -237,7 +255,7 @@ where
         let child_version = child.map(|c| c.version).unwrap_or(version);
         let child_node_key = current_node_key.child(child_version, index);
 
-        match self.apply_at(version, &child_node_key, batch)? {
+        match self.apply_at(version, &child_node_key, updated_child_nodes.remove(&index), batch)? {
             OpResponse::Updated(updated_child_node) => {
                 current_node.children.insert(Child {
                     index,
@@ -666,20 +684,6 @@ fn key_in_range(key: &str, min: Option<&NibblePath>) -> bool {
     }
 
     true
-}
-
-fn execute_op_at_node(node: &Node, nibble_path: &NibblePath) -> bool {
-    if let Some(Record { key, .. }) = &node.data {
-        if key.as_bytes() == nibble_path.bytes {
-            return true;
-        }
-    }
-
-    if node.is_empty() {
-        return true;
-    }
-
-    false
 }
 
 fn apply_op_to_node(node: &mut Node, (nibble_path, op): &(NibblePath, Op)) {
