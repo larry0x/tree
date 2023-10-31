@@ -19,7 +19,7 @@ pub use {
     nibble_range::{NibbleRange, NibbleRangeIterator},
     node::{Child, Node, Record},
     node_key::NodeKey,
-    op::{Op, OpResponse},
+    op::{Batch, Op, OpResponse},
     proof::{Proof, ProofChild, ProofNode},
     query::{GetResponse, NodeResponse, OrphanResponse, RootResponse},
 };

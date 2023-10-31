@@ -1,4 +1,6 @@
-use {crate::Node, cosmwasm_schema::cw_serde};
+use {crate::Node, cosmwasm_schema::cw_serde, std::collections::BTreeMap};
+
+pub type Batch = BTreeMap<String, Op>;
 
 #[cw_serde]
 pub enum Op {

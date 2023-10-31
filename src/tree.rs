@@ -1,15 +1,12 @@
 use {
     crate::{
-        Child, GetResponse, Nibble, NibbleIterator, NibblePath, NibbleRange, NibbleRangeIterator,
-        Node, NodeKey, NodeResponse, Op, OpResponse, OrphanResponse, Proof, ProofNode, Record,
-        RootResponse, Set,
+        Batch, Child, GetResponse, Nibble, NibbleIterator, NibblePath, NibbleRange,
+        NibbleRangeIterator, Node, NodeKey, NodeResponse, Op, OpResponse, OrphanResponse, Proof,
+        ProofNode, Record, RootResponse, Set,
     },
     cosmwasm_std::{to_binary, Order, StdResult, Storage},
     cw_storage_plus::{Bound, Item, Map, PrefixBound},
-    std::{
-        cmp::Ordering,
-        collections::{BTreeMap, HashMap},
-    },
+    std::{cmp::Ordering, collections::HashMap},
 };
 
 const LAST_COMMITTED_VERSION: Item<u64>            = Item::new("v");
@@ -53,7 +50,7 @@ where
     ///   to empty, getting ready for the next block.
     ///
     /// Note: keys must not be empty, but we don't assert it here.
-    pub fn apply(&mut self, batch: BTreeMap<String, Op>) -> Result<()> {
+    pub fn apply(&mut self, batch: Batch) -> Result<()> {
         let (old_version, new_version) = self.increment_version()?;
         let old_root_key = NodeKey::root(old_version);
 
