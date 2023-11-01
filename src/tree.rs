@@ -672,7 +672,6 @@ where
     K: Serialize + DeserializeOwned + Clone + AsRef<[u8]>,
     V: Serialize + DeserializeOwned + Clone,
 {
-    // TODO: avoid the cloning here
     let Some(current_node) = visited_nodes.last().cloned() else {
         return Ok(None);
     };
@@ -708,18 +707,7 @@ where
 
         // if the current node has no data, then we do a depth-first search,
         // exploring the children of this child
-        if let Some(record) = iterate_at(
-            tree,
-            store,
-            order,
-            min,
-            max,
-            visited_nibbles,
-            visited_nodes,
-            None,
-        )? {
-            return Ok(Some(record));
-        }
+        return iterate_at(tree, store, order, min, max, visited_nibbles, visited_nodes, None);
     }
 
     // now we've gone over all the childs of the current node, and still hasn't

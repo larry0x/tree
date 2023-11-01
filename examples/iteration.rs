@@ -46,4 +46,7 @@ fn main() {
 
     // should print None
     dbg!(iter.next().transpose().unwrap());
+
+    // should print None
+    dbg!(iter.next().transpose().unwrap());
 }
