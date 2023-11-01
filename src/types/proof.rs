@@ -34,7 +34,7 @@ impl From<Children> for Vec<ProofChild> {
 }
 
 /// ProofNode is like Node but simplified in three ways:
-/// - contains SimpleChild instead of Child
+/// - contains ProofChild instead of Child
 /// - children doesn't need to include the child of interest, because it can be
 ///   inferred, and for the sake of reducing proof size, we leave it out
 /// - similarly, for membership proofs, the data does not need to be included.
