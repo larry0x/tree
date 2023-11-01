@@ -19,6 +19,32 @@ const PRUNE_BATCH_SIZE: usize = 10;
 #[cfg(feature = "debug")]
 const DEFAULT_QUERY_BATCH_SIZE: usize = 10;
 
+/// A versioned and merklized key-value store, based on a radix tree data
+/// structure.
+///
+/// Versioned means it allows queries under historical states (provided they
+/// have not been pruned). Merklized means it is capable of generating Merkle
+/// proofs to demontrate that certain key-value pairs exist or do not exist in
+/// the tree.
+///
+/// `Tree` works similarly as common storage primitives provided by
+/// [cw-storage-plus](https://github.com/CosmWasm/cw-storage-plus), such as Item,
+/// Map, and IndexedMap. It can be declared as a constant:
+///
+/// ```rust
+/// use tree::Tree;
+/// const TREE: Tree<Vec<u8>, Vec<u8>> = Tree::new_default();
+/// ```
+///
+/// `Tree` offers a minimal API:
+///
+/// | method    | description                                                                   |
+/// | --------- | ----------------------------------------------------------------------------- |
+/// | `apply`   | perform a batch insertion or deletion operations                              |
+/// | `prune`   | delete nodes that are not longer part of the tree since a given version       |
+/// | `root`    | query the root node hash                                                      |
+/// | `get`     | query the value associated with the given key, optionally with a Merkle proof |
+/// | `iterate` | enumerate key-value pairs stored in the tree                                  |
 pub struct Tree<'a, K, V> {
     version: Item<'a, u64>,
     nodes: Map<'a, &'a NodeKey, Node<K, V>>,

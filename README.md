@@ -2,10 +2,27 @@
 
 # tree
 
-A _versioned_ and _merklized_ radix tree.
+A versioned and merklized key-value store, based on a radix tree data structure.
 
-- **Versioned** means each node are indexed by a version. Each time a batch of new data is written, the version is incremented. Data of old versions are not deleted unless a `prune` method is manually called. This allows us to query data at past versions. For blockchains, this is used in archive nodes.
-- **Merklized** means a root hash is derived as a commitment for the entire tree. For any key, a concise proof can be generated to prove its membership or non-membership in the tree. For blockchains, this is used in consensus and is necessary for building light clients, which are used in IBC for example.
+_Versioned_ means it allows queries under historical states (provided they have not been pruned). _Merklized_ means it is capable of generating Merkle proofs to demontrate that certain key-value pairs exist or do not exist in the tree.
+
+`Tree` works similarly as common storage primitives provided by [cw-storage-plus](https://github.com/CosmWasm/cw-storage-plus), such as `Item`, `Map`, and `IndexedMap`. It can be declared as a constant:
+
+```rust
+use tree::Tree;
+
+const TREE: Tree<Vec<u8>, Vec<u8>> = Tree::new_default();
+```
+
+`Tree` offers a minimal API:
+
+| method    | description                                                                   |
+| --------- | ----------------------------------------------------------------------------- |
+| `apply`   | perform a batch insertion or deletion operations                              |
+| `prune`   | delete nodes that are not longer part of the tree since a given version       |
+| `root`    | query the root node hash                                                      |
+| `get`     | query the value associated with the given key, optionally with a Merkle proof |
+| `iterate` | enumerate key-value pairs stored in the tree                                  |
 
 ## Comparison with alternative solutions
 
