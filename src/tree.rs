@@ -14,7 +14,7 @@ const DEFAULT_QUERY_BATCH_SIZE: usize = 10;
 const PRUNE_BATCH_SIZE:         usize = 10;
 
 pub struct Tree<'a, K, V> {
-    last_committed_version: Item<'a, u64>,
+    version: Item<'a, u64>,
     nodes: Map<'a, &'a NodeKey, Node<K, V>>,
     orphans: Set<'a, (u64, &'a NodeKey)>,
     key_type: PhantomData<K>,
@@ -34,7 +34,7 @@ impl<'a, K, V> Tree<'a, K, V> {
         orphan_namespace: &'a str,
     ) -> Self {
         Tree {
-            last_committed_version: Item::new(version_namespace),
+            version: Item::new(version_namespace),
             nodes: Map::new(node_namespace),
             orphans: Set::new(orphan_namespace),
             key_type: PhantomData,
@@ -80,7 +80,7 @@ where
     ///
     /// Note: keys must not be empty, but we don't assert it here.
     pub fn apply(&self, store: &mut dyn Storage, batch: Batch<K, V>) -> Result<()> {
-        let old_version = self.last_committed_version.may_load(store)?.unwrap_or(0);
+        let old_version = self.version.may_load(store)?.unwrap_or(0);
         let old_root_key = NodeKey::root(old_version);
 
         // note: we don't save the new version to store just yet, unless we know
@@ -327,12 +327,12 @@ where
         if let Some(version) = version {
             Ok(version)
         } else {
-            self.last_committed_version.load(store)
+            self.version.load(store)
         }
     }
 
     fn set_version(&self, store: &mut dyn Storage, version: u64) -> StdResult<()> {
-        self.last_committed_version.save(store, &version)
+        self.version.save(store, &version)
     }
 
     fn create_node(
@@ -410,7 +410,7 @@ where
             //   - and it's newer than the latest version: this query is illegal
             // - if the node is not the root: database corrupted
             if current_node_key.nibble_path.is_empty() {
-                let latest_version = self.last_committed_version.load(store)?;
+                let latest_version = self.version.load(store)?;
                 return match current_node_key.version.cmp(&latest_version) {
                     Ordering::Equal => {
                         Ok((None, vec![]))
