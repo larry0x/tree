@@ -2,7 +2,7 @@
 // this test takes very long to run so we don't want it be run by Github CI
 // we only manually run it:
 // $ cargo test --features fuzzing --test fuzzing -- --nocapture
-#![cfg(feature = "fuzzing")]
+// #![cfg(feature = "fuzzing")]
 
 //! Our fuzz testing strategy is as follows:
 //!
@@ -35,15 +35,51 @@ use {
     tree::{verify_membership, verify_non_membership, Batch, Op, Tree},
 };
 
+const TREE: Tree<String, String> = Tree::new_default();
+
+#[test]
+fn fuzzing() {
+    let mut rng = rand::thread_rng();
+    let mut batches = BTreeMap::new();
+    let mut log = Batch::new();
+    let mut store = MockStorage::new();
+
+    TREE.initialize(&mut store).unwrap();
+
+    // do the initial batch
+    let batch = generate_initial_batch(&mut rng);
+    batches.insert(1, batch.clone());
+    write_to_log(&mut log, &batch);
+    TREE.apply(&mut store, batch).unwrap();
+    check(&store, &log, 1).unwrap();
+
+    // do the subsequent 99 batches
+    for i in 2..=100 {
+        let batch = generate_subsequent_batch(&log, &mut rng);
+        batches.insert(i, batch.clone());
+        write_to_log(&mut log, &batch);
+        TREE.apply(&mut store, batch).unwrap();
+        if let Err(err) = check(&store, &log, i) {
+            // if fails, write the batches to a file so we can analyze it
+            let batches_bytes = serde_json::to_vec_pretty(&batches).unwrap();
+            fs::write("testdata/batches.json", batches_bytes).unwrap();
+            panic!("{err}");
+        }
+    }
+}
+
 fn rand_str<R: Rng>(rng: &mut R) -> String {
     generate(rng.gen_range(1..=20), ALPHANUMERIC)
 }
 
-fn rand_key_from_log<'a, R: Rng>(log: &'a Batch, rng: &mut R) -> (&'a String, &'a Op) {
+fn rand_key_from_log<'a, R: Rng>(
+    log: &'a Batch<String, String>,
+    rng: &mut R,
+) -> (&'a String, &'a Op<String>) {
     log.iter().nth(rng.gen_range(0..log.len())).unwrap()
 }
 
-fn generate_initial_batch<R: Rng>(rng: &mut R) -> Batch {
+fn generate_initial_batch<R: Rng>(rng: &mut R) -> Batch<String, String> {
     let mut batch = Batch::new();
     for _ in 0..100 {
         batch.insert(rand_str(rng), Op::Insert(rand_str(rng)));
@@ -51,7 +87,7 @@ fn generate_initial_batch<R: Rng>(rng: &mut R) -> Batch {
     batch
 }
 
-fn generate_subsequent_batch<R: Rng>(log: &Batch, rng: &mut R) -> Batch {
+fn generate_subsequent_batch<R: Rng>(log: &Batch<String, String>, rng: &mut R) -> Batch<String, String> {
     let mut batch = Batch::new();
     // 50 inserts under existing keys
     for _ in 0..50 {
@@ -90,7 +126,7 @@ fn generate_subsequent_batch<R: Rng>(log: &Batch, rng: &mut R) -> Batch {
 /// it we can tell whether a key is in the tree or not. If the last op was an
 /// insert, then it's in the tree. It's the last op is a delete, or if there
 /// hasn't been any op done under this key, then it's not in the tree.
-fn write_to_log(log: &mut Batch, batch: &Batch) {
+fn write_to_log(log: &mut Batch<String, String>, batch: &Batch<String, String>) {
     for (key, op) in batch {
         log.insert(key.clone(), op.clone());
     }
@@ -98,60 +134,29 @@ fn write_to_log(log: &mut Batch, batch: &Batch) {
 
 /// For every key that has ever been inserted or deleted, query the value, and
 /// verify the merkle proof.
-fn check<S: Storage>(tree: &Tree<S>, log: &Batch, i: usize) -> anyhow::Result<()> {
-    let root = tree.root(None).unwrap();
+fn check(store: &dyn Storage, log: &Batch<String, String>, i: usize) -> anyhow::Result<()> {
+    let root = TREE.root(store, None).unwrap();
     println!("batch {i}, root = {}", root.root_hash);
 
     for (key, op) in log {
-        let res = tree.get(key.clone(), true, None).unwrap();
+        let res = TREE.get(store, key, true, None).unwrap();
         let proof = from_binary(&res.proof.unwrap()).unwrap();
         if let Op::Insert(value) = op {
             if res.value.as_ref() != Some(value) {
                 bail!("incorrect value for key = {key}, expecting Some({value}), found {:?}", res.value);
             };
-            if let Err(err) = verify_membership(&root.root_hash, &key, &value, &proof) {
+            if let Err(err) = verify_membership(&root.root_hash, key, value, &proof) {
                 bail!("failed to verify membership for key = {key}, value = {value}, err = {err}");
             };
         } else {
             if let Some(value) = res.value {
                 bail!("incorrect value for key = {key}, expecting None, found Some({value})");
             };
-            if let Err(err) = verify_non_membership(&root.root_hash, &key, &proof) {
+            if let Err(err) = verify_non_membership(&root.root_hash, key, &proof) {
                 bail!("failed to verify non-membership for key = {key}, err = {err}");
             };
         }
     }
 
     Ok(())
-}
-
-#[test]
-fn fuzzing() {
-    let mut rng = rand::thread_rng();
-    let mut batches = BTreeMap::new();
-    let mut log = Batch::new();
-    let mut tree = Tree::new(MockStorage::new());
-
-    tree.initialize().unwrap();
-
-    // do the initial batch
-    let batch = generate_initial_batch(&mut rng);
-    batches.insert(1, batch.clone());
-    write_to_log(&mut log, &batch);
-    tree.apply(batch).unwrap();
-    check(&tree, &log, 1).unwrap();
-
-    // do the subsequent 99 batches
-    for i in 2..=100 {
-        let batch = generate_subsequent_batch(&log, &mut rng);
-        batches.insert(i, batch.clone());
-        write_to_log(&mut log, &batch);
-        tree.apply(batch).unwrap();
-        if let Err(err) = check(&tree, &log, i) {
-            // if fails, write the batches to a file so we can analyze it
-            let batches_bytes = serde_json::to_vec_pretty(&batches).unwrap();
-            fs::write("testdata/batches.json", batches_bytes).unwrap();
-            panic!("{err}");
-        }
-    }
 }

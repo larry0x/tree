@@ -1,5 +1,5 @@
 use {
-    crate::types::{hash_child, hash_data, Children, Hash, Nibble},
+    crate::types::{hash_child, hash_data, Children, Hash, Nibble, NibblePath, Op},
     blake3::Hasher,
     cosmwasm_schema::cw_serde,
 };
@@ -13,9 +13,9 @@ pub struct Child {
 }
 
 #[cw_serde]
-pub struct Record {
-    pub key: String,
-    pub value: String,
+pub struct Record<K, V> {
+    pub key: K,
+    pub value: V,
 }
 
 /// Unlike Ethereum's Patricia trie, we don't make the distinction between
@@ -34,15 +34,18 @@ pub struct Record {
 ///   consider it's not worth it. See a similar discussion in Diem's JMT paper.
 #[cw_serde]
 #[derive(Default)]
-pub struct Node {
+pub struct Node<K, V> {
     // TODO: replace this with BTreeMap<Nibble, Child> when possible
     pub children: Children,
-    pub data: Option<Record>,
+    pub data: Option<Record<K, V>>,
 }
 
-impl Node {
+impl<K, V> Node<K, V> {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            children: Children::new(vec![]),
+            data: None,
+        }
     }
 
     pub fn new_internal(children: impl Into<Children>) -> Self {
@@ -52,7 +55,7 @@ impl Node {
         }
     }
 
-    pub fn new_leaf(key: String, value: String) -> Self {
+    pub fn new_leaf(key: K, value: V) -> Self {
         Self {
             children: Children::new(vec![]),
             data: Some(Record { key, value })
@@ -66,7 +69,29 @@ impl Node {
     pub fn is_empty(&self) -> bool {
         self.children.is_empty() && self.data.is_none()
     }
+}
 
+impl<K, V> Node<K, V>
+where
+    K: Clone,
+    V: Clone,
+{
+    pub fn apply_op(&mut self, (_, key, op): &(NibblePath, K, Op<V>),) {
+        self.data = match op {
+            Op::Insert(value) => Some(Record {
+                key: key.clone(),
+                value: value.clone(),
+            }),
+            Op::Delete => None,
+        };
+    }
+}
+
+impl<K, V> Node<K, V>
+where
+    K: AsRef<[u8]>,
+    V: AsRef<[u8]>,
+{
     /// Compute the node's hash, which is defined as:
     ///
     /// hash(childA.index || childA.hash || ... || childZ.hash || childZ.value || len(key) || key || value)

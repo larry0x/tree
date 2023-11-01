@@ -1,4 +1,4 @@
-use crate::{Nibble, NibblePath, Op};
+use crate::{Nibble, NibblePath};
 
 #[cfg_attr(test, derive(Debug, PartialEq))]
 pub struct NibbleRange {
@@ -45,17 +45,17 @@ pub struct NibbleRange {
 /// A difference is that Diem assumes all nibble paths are of the same length
 /// (because in Jellyfish Merkle Tree, the keys are hashed), while we do not
 /// make this assumption.
-pub struct NibbleRangeIterator<'a> {
+pub struct NibbleRangeIterator<'a, K, V> {
     // must be sorted by nibble path
-    batch: &'a [(NibblePath, Op)],
+    batch: &'a [(NibblePath, K, V)],
     // which index in the nibble path we're looking at
     nibble_idx: usize,
     // which nibble path in the batch we're looking at
     pos: usize,
 }
 
-impl<'a> NibbleRangeIterator<'a> {
-    pub fn new(batch: &'a [(NibblePath, Op)], nibble_idx: usize) -> Self {
+impl<'a, K, V> NibbleRangeIterator<'a, K, V> {
+    pub fn new(batch: &'a [(NibblePath, K, V)], nibble_idx: usize) -> Self {
         Self {
             batch,
             nibble_idx,
@@ -69,7 +69,7 @@ impl<'a> NibbleRangeIterator<'a> {
     }
 }
 
-impl<'a> Iterator for NibbleRangeIterator<'a> {
+impl<'a, K, V> Iterator for NibbleRangeIterator<'a, K, V> {
     type Item = NibbleRange;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -102,35 +102,45 @@ impl<'a> Iterator for NibbleRangeIterator<'a> {
     }
 }
 
-#[test]
-fn iterating_nibble_ranges() {
-    let batch = [
-        "\"0123456\"",
-        "\"0135\"",
-        "\"013568\"",
-        "\"02222222222\"",
-        "\"123456\"",
-        "\"13579abc\"",
-    ]
-    .into_iter()
-    .map(|nibble_path_str| {
-        let nibble_path = serde_json::from_str(nibble_path_str).unwrap();
-        (nibble_path, Op::Delete)
-    })
-    .collect::<Vec<_>>();
+// ----------------------------------- tests -----------------------------------
 
-    let nibble_range_iter = NibbleRangeIterator::new(batch.as_slice(), 0);
-    let ranges = nibble_range_iter.collect::<Vec<_>>();
-    assert_eq!(ranges, vec![
-        NibbleRange {
-            nibble: Nibble::new(0),
-            start: 0,
-            end: 3,
-        },
-        NibbleRange {
-            nibble: Nibble::new(1),
-            start: 4,
-            end: 5,
-        },
-    ]);
+#[cfg(test)]
+mod tests {
+    use {
+        crate::{Nibble, NibbleRange, NibbleRangeIterator},
+        cosmwasm_std::Empty,
+    };
+
+    #[test]
+    fn iterating_nibble_ranges() {
+        let batch = [
+            "\"0123456\"",
+            "\"0135\"",
+            "\"013568\"",
+            "\"02222222222\"",
+            "\"123456\"",
+            "\"13579abc\"",
+        ]
+        .into_iter()
+        .map(|key| {
+            let nibble_path = serde_json::from_str(key).unwrap();
+            (nibble_path, key, Empty {})
+        })
+        .collect::<Vec<_>>();
+
+        let nibble_range_iter = NibbleRangeIterator::new(batch.as_slice(), 0);
+        let ranges = nibble_range_iter.collect::<Vec<_>>();
+        assert_eq!(ranges, vec![
+            NibbleRange {
+                nibble: Nibble::new(0),
+                start: 0,
+                end: 3,
+            },
+            NibbleRange {
+                nibble: Nibble::new(1),
+                start: 4,
+                end: 5,
+            },
+        ]);
+    }
 }

@@ -11,7 +11,7 @@ use {
 ///
 /// For non-membership proof, it is the path leading from a node that lacks the
 /// child that would lead to the KV of interest if it existed, to the root.
-pub type Proof = Vec<ProofNode>;
+pub type Proof<K, V> = Vec<ProofNode<K, V>>;
 
 /// ProofChild is like Child but simplified by removing the version. We don't
 /// need the version for proof because the version isn't merklized.
@@ -39,13 +39,17 @@ impl From<Children> for Vec<ProofChild> {
 ///   inferred, and for the sake of reducing proof size, we leave it out
 /// - similarly, for membership proofs, the data does not need to be included.
 #[cw_serde]
-pub struct ProofNode {
+pub struct ProofNode<K, V> {
     pub children: Vec<ProofChild>,
-    pub data: Option<Record>,
+    pub data: Option<Record<K, V>>,
 }
 
-impl ProofNode {
-    pub fn from_node(mut node: Node, drop_child_at_index: Option<Nibble>, drop_data: bool) -> Self {
+impl<K, V> ProofNode<K, V> {
+    pub fn from_node(
+        mut node: Node<K, V>,
+        drop_child_at_index: Option<Nibble>,
+        drop_data: bool,
+    ) -> Self {
         if let Some(index) = drop_child_at_index {
             node.children.remove(index);
         }
@@ -63,9 +67,19 @@ impl ProofNode {
     pub fn has_child_at_index(&self, index: Nibble) -> bool {
         self.children.iter().any(|child| child.index == index)
     }
+}
 
+impl<K, V> ProofNode<K, V>
+where
+    K: AsRef<[u8]>,
+    V: AsRef<[u8]>,
+{
     // TODO: refactor this code to make it less ugly??
-    pub fn hash(&self, maybe_child: Option<&ProofChild>, maybe_data: Option<&Record>) -> Hash {
+    pub fn hash(
+        &self,
+        maybe_child: Option<&ProofChild>,
+        maybe_data: Option<&Record<K, V>>,
+    ) -> Hash {
         let mut hasher = Hasher::new();
         let mut maybe_child_hashed = false;
 

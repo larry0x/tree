@@ -21,10 +21,10 @@ pub(crate) fn hash_proof_child(hasher: &mut Hasher, child: &ProofChild) {
     hasher.update(child.hash.as_bytes());
 }
 
-pub(crate) fn hash_data(hasher: &mut Hasher, data: &Record) {
-    hasher.update((data.key.as_bytes().len() as u16).to_be_bytes().as_slice());
-    hasher.update(data.key.as_bytes());
-    hasher.update(data.value.as_bytes());
+pub(crate) fn hash_data<K: AsRef<[u8]>, V: AsRef<[u8]>>(hasher: &mut Hasher, data: &Record<K, V>) {
+    hasher.update((data.key.as_ref().len() as u16).to_be_bytes().as_slice());
+    hasher.update(data.key.as_ref());
+    hasher.update(data.value.as_ref());
 }
 
 /// The `blake3::Hash` type doesn't implement JsonSchema and doesn't have a good

@@ -11,18 +11,18 @@ pub struct RootResponse {
 }
 
 #[cw_serde]
-pub struct GetResponse {
-    pub key: String,
+pub struct GetResponse<K, V> {
+    pub key: K,
     /// None if not found
-    pub value: Option<String>,
+    pub value: Option<V>,
     /// None if proof is not requested, or if the tree is empty
     pub proof: Option<Binary>,
 }
 
 #[cw_serde]
-pub struct NodeResponse {
+pub struct NodeResponse<K, V> {
     pub node_key: NodeKey,
-    pub node: Node,
+    pub node: Node<K, V>,
     pub hash: Hash,
 }
 

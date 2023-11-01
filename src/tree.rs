@@ -6,6 +6,7 @@ use {
     },
     cosmwasm_std::{to_binary, Order, StdResult, Storage},
     cw_storage_plus::{Bound, Item, Map, PrefixBound},
+    serde::{de::DeserializeOwned, ser::Serialize},
     std::{cmp::Ordering, collections::HashMap, marker::PhantomData},
 };
 
@@ -14,7 +15,7 @@ const PRUNE_BATCH_SIZE:         usize = 10;
 
 pub struct Tree<'a, K, V> {
     last_committed_version: Item<'a, u64>,
-    nodes: Map<'a, &'a NodeKey, Node>,
+    nodes: Map<'a, &'a NodeKey, Node<K, V>>,
     orphans: Set<'a, (u64, &'a NodeKey)>,
     key_type: PhantomData<K>,
     value_type: PhantomData<V>,
@@ -41,14 +42,28 @@ impl<'a, K, V> Tree<'a, K, V> {
         }
     }
 
-    // rust still doesn't support Default trait to return a const, so we have to
-    // define this function. https://github.com/rust-lang/rust/issues/67792
+    /// Create a `Tree` using the default namespaces.
+    //
+    // ideally we just use `Tree::default`, however rust still doesn't support
+    // Default trait to return a const:
+    // https://github.com/rust-lang/rust/issues/67792
     pub const fn new_default() -> Self {
         Self::new("v", "n", "o")
     }
 }
 
-impl<'a, K, V> Tree<'a, K, V> {
+// note: whereas other common storage primitives (such as Item, Map) only
+// requires K, V to implement cw_serde traits (namely Serialize + DeserializedOwned)
+// we additionally require AsRef<[u8]>. there are two uses for this:
+// - conversion of K into NibblePath
+// - hashing K and V
+// most types that you'll typically use implement AsRef<[u8]>, such as Vec<u8>
+// and String.
+impl<'a, K, V> Tree<'a, K, V>
+where
+    K: Serialize + DeserializeOwned + Clone + PartialEq + AsRef<[u8]>,
+    V: Serialize + DeserializeOwned + Clone + PartialEq + AsRef<[u8]>,
+{
     pub fn initialize(&self, store: &mut dyn Storage) -> Result<()> {
         // initialize version as zero
         self.last_committed_version.save(store, &0)?;
@@ -71,7 +86,7 @@ impl<'a, K, V> Tree<'a, K, V> {
     ///   to empty, getting ready for the next block.
     ///
     /// Note: keys must not be empty, but we don't assert it here.
-    pub fn apply(&self, store: &mut dyn Storage, batch: Batch) -> Result<()> {
+    pub fn apply(&self, store: &mut dyn Storage, batch: Batch<K, V>) -> Result<()> {
         let old_version = self.last_committed_version.load(store)?;
         let old_root_key = NodeKey::root(old_version);
 
@@ -83,7 +98,7 @@ impl<'a, K, V> Tree<'a, K, V> {
         // to NibblePaths
         let batch = batch
             .into_iter()
-            .map(|(key, op)| (NibblePath::from(key), op))
+            .map(|(key, op)| (NibblePath::from(&key), key, op))
             .collect::<Vec<_>>();
 
         // recursively apply the batch, starting from the root (depth = 0)
@@ -121,7 +136,7 @@ impl<'a, K, V> Tree<'a, K, V> {
         store: &mut dyn Storage,
         version: u64,
         current_node_key: &NodeKey,
-        current_node: Option<Node>,
+        current_node: Option<Node<K, V>>,
         // some basic rust knowledge here: the following are different!
         //
         // mut batch: &T
@@ -129,8 +144,8 @@ impl<'a, K, V> Tree<'a, K, V> {
         //
         // batch: &mut T
         // this means that the T instance that `batch` points to can be mutated
-        mut batch: &[(NibblePath, Op)],
-    ) -> Result<OpResponse> {
+        mut batch: &[(NibblePath, K, Op<V>)],
+    ) -> Result<OpResponse<K, V>> {
         // attempt to load the node. if not found, we simply create a new empty
         // node (no children, no data)
         let mut current_node = if let Some(node) = current_node {
@@ -177,7 +192,7 @@ impl<'a, K, V> Tree<'a, K, V> {
         // additionally, if this node originally had data is will be overwritten
         // here, we take it out as "dangling data" and insert it later
         if batch[0].0 == current_node_key.nibble_path {
-            apply_op_to_node(&mut current_node, &batch[0]);
+            current_node.apply_op(&batch[0]);
             batch = &batch[1..];
         }
 
@@ -194,10 +209,10 @@ impl<'a, K, V> Tree<'a, K, V> {
         // willing to make (iteration is such as important feature)
         let mut owned_batch;
         let batch = if let Some(Record { key, value }) = dangling_data {
-            let nibble_path = NibblePath::from(key);
+            let nibble_path = NibblePath::from(&key);
             owned_batch = batch.to_vec();
-            if let Err(pos) = batch.binary_search_by_key(&&nibble_path, |(nibble_path, _)| nibble_path) {
-                owned_batch.insert(pos, (nibble_path, Op::Insert(value.clone())));
+            if let Err(pos) = batch.binary_search_by_key(&&nibble_path, |(nibble_path, _, _)| nibble_path) {
+                owned_batch.insert(pos, (nibble_path, key, Op::Insert(value)));
             }
             owned_batch.as_slice()
         } else {
@@ -214,7 +229,7 @@ impl<'a, K, V> Tree<'a, K, V> {
         // if this condition is not satisfied, we need to dispatch the ops to
         // the current node's children.
         if batch.len() == 1 && current_node.is_empty() {
-            apply_op_to_node(&mut current_node, &batch[0]);
+            current_node.apply_op(&batch[0]);
         } else {
             let nibble_range_iter = NibbleRangeIterator::new(batch, current_node_key.depth());
             for NibbleRange { nibble, start, end } in nibble_range_iter {
@@ -332,7 +347,7 @@ impl<'a, K, V> Tree<'a, K, V> {
         store: &mut dyn Storage,
         version: u64,
         nibble_path: NibblePath,
-        node: &Node,
+        node: &Node<K, V>,
     ) -> StdResult<()> {
         self.nodes.save(store, &NodeKey::new(version, nibble_path), node)
     }
@@ -362,10 +377,10 @@ impl<'a, K, V> Tree<'a, K, V> {
     pub fn get(
         &self,
         store: &dyn Storage,
-        key: String,
+        key: &K,
         prove: bool,
         version: Option<u64>,
-    ) -> Result<GetResponse> {
+    ) -> Result<GetResponse<K, V>> {
         let version = self.version_or_default(store, version)?;
         let nibble_path = NibblePath::from(&key);
 
@@ -382,7 +397,7 @@ impl<'a, K, V> Tree<'a, K, V> {
             None
         };
 
-        Ok(GetResponse { key, value, proof })
+        Ok(GetResponse { key: key.clone(), value, proof })
     }
 
     fn get_at(
@@ -391,7 +406,7 @@ impl<'a, K, V> Tree<'a, K, V> {
         current_node_key: NodeKey,
         nibble_iter: &mut NibbleIterator,
         prove: bool,
-    ) -> Result<(Option<String>, Proof)> {
+    ) -> Result<(Option<V>, Proof<K, V>)> {
         let Some(current_node) = self.nodes.may_load(store, &current_node_key)? else {
             // Node is not found. There are a few circumstances:
             // - if the node is the root,
@@ -503,7 +518,11 @@ impl<'a, K, V> Tree<'a, K, V> {
         Ok(TreeIterator::new(self, store, order, min, max, root_node))
     }
 
-    pub fn node(&self, store: &dyn Storage, node_key: NodeKey) -> Result<Option<NodeResponse>> {
+    pub fn node(
+        &self,
+        store: &dyn Storage,
+        node_key: NodeKey,
+    ) -> Result<Option<NodeResponse<K, V>>> {
         Ok(self
             .nodes
             .may_load(store, &node_key)?
@@ -519,7 +538,7 @@ impl<'a, K, V> Tree<'a, K, V> {
         store: &dyn Storage,
         start_after: Option<&NodeKey>,
         limit: Option<usize>,
-    ) -> Result<Vec<NodeResponse>> {
+    ) -> Result<Vec<NodeResponse<K, V>>> {
         let start = start_after.map(Bound::exclusive);
         let limit = limit.unwrap_or(DEFAULT_QUERY_BATCH_SIZE);
 
@@ -567,7 +586,7 @@ pub struct TreeIterator<'a, K, V, S> {
     min: Option<NibblePath>,
     max: Option<NibblePath>,
     visited_nibbles: NibblePath,
-    visited_nodes: Vec<Node>,
+    visited_nodes: Vec<Node<K, V>>,
 }
 
 impl<'a, K, V, S> TreeIterator<'a, K, V, S> {
@@ -577,7 +596,7 @@ impl<'a, K, V, S> TreeIterator<'a, K, V, S> {
         order: Order,
         min: Option<&str>,
         max: Option<&str>,
-        root_node: Node,
+        root_node: Node<K, V>,
     ) -> Self {
         Self {
             tree,
@@ -594,8 +613,10 @@ impl<'a, K, V, S> TreeIterator<'a, K, V, S> {
 impl<'a, K, V, S> Iterator for TreeIterator<'a, K, V, S>
 where
     S: Storage,
+    K: Serialize + DeserializeOwned + Clone + AsRef<[u8]>,
+    V: Serialize + DeserializeOwned + Clone,
 {
-    type Item = (String, String);
+    type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
         iterate_at(
@@ -618,9 +639,13 @@ fn iterate_at<K, V>(
     min: Option<&NibblePath>,
     max: Option<&NibblePath>,
     visited_nibbles: &mut NibblePath,
-    visited_nodes: &mut Vec<Node>,
+    visited_nodes: &mut Vec<Node<K, V>>,
     start_after_index: Option<Nibble>,
-) -> Option<(String, String)> {
+) -> Option<(K, V)>
+where
+    K: Serialize + DeserializeOwned + Clone + AsRef<[u8]>,
+    V: Serialize + DeserializeOwned + Clone,
+{
     // TODO: avoid the cloning here
     let Some(current_node) = visited_nodes.last().cloned() else {
         return None;
@@ -733,27 +758,15 @@ fn nibbles_in_range(
     true
 }
 
-fn key_in_range(key: &str, min: Option<&NibblePath>) -> bool {
+fn key_in_range<K: AsRef<[u8]>>(key: &K, min: Option<&NibblePath>) -> bool {
     if let Some(min) = min {
-        if key.as_bytes() < min.bytes.as_slice() {
+        if key.as_ref() < min.bytes.as_slice() {
             return false;
         }
     }
 
     true
 }
-
-fn apply_op_to_node(node: &mut Node, (nibble_path, op): &(NibblePath, Op)) {
-    node.data = match op {
-        Op::Insert(value) => Some(Record {
-            key: String::from_utf8(nibble_path.bytes.clone()).unwrap(),
-            value: value.clone(),
-        }),
-        Op::Delete => None,
-    };
-}
-
-
 
 #[derive(Debug, PartialEq, thiserror::Error)]
 pub enum TreeError {

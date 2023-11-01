@@ -1,5 +1,5 @@
 use {
-    crate::types::{Hash, Nibble, HASH_LEN},
+    crate::types::Nibble,
     cosmwasm_std::{ensure, ensure_eq, StdError, StdResult},
     cw_storage_plus::KeyDeserialize,
     hex::FromHexError,
@@ -130,32 +130,13 @@ impl FromIterator<Nibble> for NibblePath {
     }
 }
 
-impl From<Hash> for NibblePath {
-    fn from(hash: Hash) -> Self {
+// this allows any type that can be referenced raw bytes to be converted to
+// NibblePath. examples include Vec<u8>, str, String, and blake3::Hash.
+impl<T: AsRef<[u8]>> From<T> for NibblePath {
+    fn from(value: T) -> Self {
         Self {
-            num_nibbles: HASH_LEN * 2,
-            bytes: hash.into_bytes().to_vec(),
-        }
-    }
-}
-
-// impl From<Vec<u8>> for NibblePath {
-//     fn from(bytes: Vec<u8>) -> Self {
-//         Self {
-//             num_nibbles: bytes.len() * 2,
-//             bytes,
-//         }
-//     }
-// }
-
-// in this tech demo we use strings as keys and values, so we implement this for
-// convenience. in practice we don't need this impl
-impl<T: AsRef<str>> From<T> for NibblePath {
-    fn from(s: T) -> Self {
-        let bytes = s.as_ref().as_bytes().to_vec();
-        Self {
-            num_nibbles: bytes.len() * 2,
-            bytes,
+            num_nibbles: value.as_ref().len() * 2,
+            bytes: value.as_ref().to_vec(),
         }
     }
 }

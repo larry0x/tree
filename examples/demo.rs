@@ -88,15 +88,16 @@ fn print_values_and_verify(store: &dyn Storage, keys: &[&str]) {
 
     let mut responses = vec![];
     for key in keys {
-        let res = TREE.get(store, key.to_string(), true, None).unwrap();
+        let key = key.to_string();
+        let res = TREE.get(store, &key, true, None).unwrap();
         let proof = from_binary(res.proof.as_ref().unwrap()).unwrap();
 
         // verify the proof
         if let Some(value) = &res.value {
-            verify_membership(&root.root_hash, key, value, &proof).unwrap();
+            verify_membership(&root.root_hash, &key, value, &proof).unwrap();
             println!("verified the existence of ({key}, {value})");
         } else {
-            verify_non_membership(&root.root_hash, key, &proof).unwrap();
+            verify_non_membership(&root.root_hash, &key, &proof).unwrap();
             println!("verified the non-existence of {key}");
         }
 

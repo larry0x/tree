@@ -1,21 +1,38 @@
 use crate::{Hash, NibblePath, Proof, ProofChild, Record};
 
-pub fn verify_membership(root_hash: &Hash, key: &str, value: &str, proof: &Proof) -> Result<()> {
+pub fn verify_membership<K, V>(
+    root_hash: &Hash,
+    key: &K,
+    value: &V,
+    proof: &Proof<K, V>,
+) -> Result<()>
+where
+    K: Clone + AsRef<[u8]>,
+    V: Clone + AsRef<[u8]>,
+{
     let nibble_path = NibblePath::from(key);
 
     // compute the hash of the node that contains the data of interest
     // it should be the first element in the proof
     let node = proof.first().ok_or(VerificationError::ProofEmpty)?;
     let data = Record {
-        key: key.into(),
-        value: value.into(),
+        key: key.clone(),
+        value: value.clone(),
     };
     let hash = node.hash(None, Some(&data));
 
     compute_and_check_root_hash(root_hash, proof, nibble_path, hash)
 }
 
-pub fn verify_non_membership(root_hash: &Hash, key: &str, proof: &Proof) -> Result<()> {
+pub fn verify_non_membership<K, V>(
+    root_hash: &Hash,
+    key: &K,
+    proof: &Proof<K, V>,
+) -> Result<()>
+where
+    K: AsRef<[u8]> + PartialEq,
+    V: AsRef<[u8]>,
+{
     let proof_len = proof.len();
     let nibble_path = NibblePath::from(key);
 
@@ -32,7 +49,7 @@ pub fn verify_non_membership(root_hash: &Hash, key: &str, proof: &Proof) -> Resu
     }
 
     if let Some(data) = &node.data {
-        if data.key == key {
+        if data.key == *key {
             return Err(VerificationError::KeyExists);
         }
     }
@@ -42,12 +59,16 @@ pub fn verify_non_membership(root_hash: &Hash, key: &str, proof: &Proof) -> Resu
     compute_and_check_root_hash(root_hash, proof, nibble_path, hash)
 }
 
-fn compute_and_check_root_hash(
+fn compute_and_check_root_hash<K, V>(
     root_hash: &Hash,
-    proof: &Proof,
+    proof: &Proof<K, V>,
     nibble_path: NibblePath,
     mut hash: Hash,
-) -> Result<()> {
+) -> Result<()>
+where
+    K: AsRef<[u8]>,
+    V: AsRef<[u8]>,
+{
     let proof_len = proof.len();
 
     // traverse up the tree and compute the hash of each node
@@ -115,8 +136,8 @@ mod tests {
 
     #[test_case(
         hash("15484df8d087ecd9e58d6b7c8c6bc3e80718d367e1e55861bac3207709bf92fa"),
-        "fuzz",
-        "buzz",
+        "fuzz".into(),
+        "buzz".into(),
         vec![
             ProofNode {
                 children: vec![],
@@ -146,13 +167,18 @@ mod tests {
         ];
         "proving (fuzz, buzz) exists"
     )]
-    fn verifying_membership(root_hash: Hash, key: &str, value: &str, proof: Proof) {
-        assert!(verify_membership(&root_hash, key, value, &proof).is_ok());
+    fn verifying_membership(
+        root_hash: Hash,
+        key: String,
+        value: String,
+        proof: Proof<String, String>,
+    ) {
+        assert!(verify_membership(&root_hash, &key, &value, &proof).is_ok());
     }
 
     #[test_case(
         hash("15484df8d087ecd9e58d6b7c8c6bc3e80718d367e1e55861bac3207709bf92fa"),
-        "f",
+        "f".into(),
         vec![
             ProofNode {
                 children: vec![
@@ -186,7 +212,7 @@ mod tests {
     )]
     #[test_case(
         hash("15484df8d087ecd9e58d6b7c8c6bc3e80718d367e1e55861bac3207709bf92fa"),
-        "foo",
+        "foo".into(),
         vec![
             ProofNode {
                 children: vec![],
@@ -219,7 +245,11 @@ mod tests {
         ];
         "proving foo does not exist"
     )]
-    fn verifying_non_membership(root_hash: Hash, key: &str, proof: Proof) {
-        assert!(verify_non_membership(&root_hash, key, &proof).is_ok());
+    fn verifying_non_membership(
+        root_hash: Hash,
+        key: String,
+        proof: Proof<String, String>,
+    ) {
+        assert!(verify_non_membership(&root_hash, &key, &proof).is_ok());
     }
 }
