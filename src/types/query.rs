@@ -1,8 +1,10 @@
 use {
-    crate::types::{Hash, Node, NodeKey},
+    crate::Hash,
     cosmwasm_schema::cw_serde,
     cosmwasm_std::Binary,
 };
+#[cfg(feature = "debug")]
+use crate::{Node, NodeKey};
 
 #[cw_serde]
 pub struct RootResponse {
@@ -19,6 +21,7 @@ pub struct GetResponse<K, V> {
     pub proof: Option<Binary>,
 }
 
+#[cfg(feature = "debug")]
 #[cw_serde]
 pub struct NodeResponse<K, V> {
     pub node_key: NodeKey,
@@ -26,6 +29,7 @@ pub struct NodeResponse<K, V> {
     pub hash: Hash,
 }
 
+#[cfg(feature = "debug")]
 #[cw_serde]
 pub struct OrphanResponse {
     pub node_key: NodeKey,

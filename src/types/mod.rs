@@ -21,7 +21,9 @@ pub use {
     node_key::NodeKey,
     op::{Batch, Op, OpResponse},
     proof::{Proof, ProofChild, ProofNode},
-    query::{GetResponse, NodeResponse, OrphanResponse, RootResponse},
+    query::{GetResponse, RootResponse},
 };
+#[cfg(feature = "debug")]
+pub use query::{NodeResponse, OrphanResponse};
 
 use hash::{hash_child, hash_data, hash_proof_child};

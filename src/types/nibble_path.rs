@@ -1,5 +1,5 @@
 use {
-    crate::types::Nibble,
+    crate::Nibble,
     cosmwasm_std::{ensure, ensure_eq, StdError, StdResult},
     cw_storage_plus::KeyDeserialize,
     hex::FromHexError,

@@ -1,5 +1,5 @@
 use {
-    crate::types::{Nibble, NibblePath},
+    crate::{Nibble, NibblePath},
     cosmwasm_std::{ensure, StdError, StdResult},
     cw_storage_plus::{Key, KeyDeserialize, PrimaryKey},
     schemars::JsonSchema,

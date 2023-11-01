@@ -3,7 +3,7 @@
 //! walkaround. Once map serialization is supported, we can delete this.
 
 use {
-    crate::types::{Child, Nibble},
+    crate::{Child, Nibble},
     cosmwasm_schema::cw_serde,
 };
 
