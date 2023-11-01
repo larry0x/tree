@@ -38,15 +38,16 @@ Compared to PMT and JMT, we made a few adjustments:
 
 The following table summarizes features supported by various state commitment schemes:
 
-|                            | IAVL | Merk | JMT | this work |
-| -------------------------- | ---- | ---- | --- | --------- |
-| stable rust implementation | ❌    | ❌    | ✅   | ✅         |
-| batched ops                | ❌    | ✅    | ✅   | ✅         |
-| deletion                   | ✅    | ✅    | ❌   | ✅         |
-| iteration                  | ✅    | ✅    | ❌   | ✅         |
-| O(1) read                  | ❌    | ✅    | ❌   | ❌         |
-| historical query           | ✅    | ❌    | ✅   | ✅         |
-| merkle proof               | ✅    | ✅    | ✅   | ✅         |
+|                               | IAVL | Merk | JMT | this work |
+| ----------------------------- | ---- | ---- | --- | --------- |
+| stable rust implementation    | ❌    | ❌    | ✅   | ✅         |
+| batched ops                   | ❌    | ✅    | ✅   | ✅         |
+| deletion                      | ✅    | ✅    | ❌   | ✅         |
+| iteration                     | ✅    | ✅    | ❌   | ✅         |
+| O(1) read                     | ❌    | ✅    | ❌   | ❌         |
+| historical query              | ✅    | ❌    | ✅   | ✅         |
+| merkle proof                  | ✅    | ✅    | ✅   | ✅         |
+| insertion order indepdendence | ❌    | ❌    | ✅   | ✅         |
 
 The only feature this work misses out is O(1) read, which I think is mutually exclusive with historical queries (see note below). For use in blockchains, historical queries seem to be more important, so we're willing to make this tradeoff.
 
