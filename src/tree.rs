@@ -7,7 +7,7 @@ use {
     cosmwasm_std::{to_binary, Order, StdResult, Storage},
     cw_storage_plus::{Item, Map, PrefixBound},
     serde::{de::DeserializeOwned, ser::Serialize},
-    std::{cmp::Ordering, collections::HashMap, marker::PhantomData},
+    std::{cmp::Ordering, collections::HashMap},
 };
 #[cfg(feature = "debug")]
 use {
@@ -49,8 +49,6 @@ pub struct Tree<'a, K, V> {
     version: Item<'a, u64>,
     nodes: Map<'a, &'a NodeKey, Node<K, V>>,
     orphans: Set<'a, (u64, &'a NodeKey)>,
-    key_type: PhantomData<K>,
-    value_type: PhantomData<V>,
 }
 
 impl<'a, K, V> Default for Tree<'a, K, V> {
@@ -69,8 +67,6 @@ impl<'a, K, V> Tree<'a, K, V> {
             version: Item::new(version_namespace),
             nodes: Map::new(node_namespace),
             orphans: Set::new(orphan_namespace),
-            key_type: PhantomData,
-            value_type: PhantomData,
         }
     }
 
