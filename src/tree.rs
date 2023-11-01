@@ -384,15 +384,19 @@ where
 
     pub fn root(&self, store: &dyn Storage, version: Option<u64>) -> Result<RootResponse> {
         let version = self.version_or_default(store, version)?;
-        let root_node_key = NodeKey::root(version);
-        let Some(root_node) = self.nodes.may_load(store, &root_node_key)? else {
-            return Err(TreeError::RootNodeNotFound { version });
-        };
+        let root_node = self.root_node(store, version)?;
 
         Ok(RootResponse {
             version,
             root_hash: root_node.hash(),
         })
+    }
+
+    fn root_node(&self, store: &dyn Storage, version: u64) -> Result<Node<K, V>> {
+        let root_node_key = NodeKey::root(version);
+        self.nodes
+            .may_load(store, &root_node_key)?
+            .ok_or(TreeError::RootNodeNotFound { version })
     }
 
     pub fn get(
@@ -531,10 +535,7 @@ where
         'a: 'c,
     {
         let version = self.version_or_default(store, version)?;
-        let root_node_key = NodeKey::root(version);
-        let Some(root_node) = self.nodes.may_load(store, &root_node_key)? else {
-            return Err(TreeError::RootNodeNotFound { version });
-        };
+        let root_node = self.root_node(store, version)?;
 
         Ok(TreeIterator::new(self, store, order, min, max, root_node))
     }
