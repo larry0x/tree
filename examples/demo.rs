@@ -4,12 +4,14 @@ use {
     tree::{verify_membership, verify_non_membership, Op, Tree},
 };
 
+const TREE: Tree<String, String> = Tree::new_default();
+
 fn main() {
-    let mut tree = Tree::new(MockStorage::new());
+    let mut store = MockStorage::new();
 
-    tree.initialize().unwrap();
+    TREE.initialize(&mut store).unwrap();
 
-    tree.apply([
+    TREE.apply(&mut store, [
         ("food".to_string(), Op::Insert("ramen".into())),
         ("fuzz".to_string(), Op::Insert("buzz".into())),
         ("larry".to_string(), Op::Insert("engineer".into())),
@@ -19,7 +21,7 @@ fn main() {
     .collect())
     .unwrap();
 
-    tree.apply([
+    TREE.apply(&mut store, [
         ("fuzz".to_string(), Op::Delete),
         ("larry".to_string(), Op::Delete),
         ("satoshi".to_string(), Op::Insert("nakamoto".into())),
@@ -28,25 +30,25 @@ fn main() {
     .collect())
     .unwrap();
 
-    tree.prune(None).unwrap();
+    TREE.prune(&mut store, None).unwrap();
 
     println!("ROOT:");
     println!("------------------------------------------------------------------");
-    print_root(&tree, None);
+    print_root(&store, None);
 
     println!("\nNODES:");
     println!("------------------------------------------------------------------");
-    print_nodes(&tree);
+    print_nodes(&store);
 
     println!("\nORPHANS:");
     println!("------------------------------------------------------------------");
     // should be empty since we already pruned
     // but you can also comment the pruning line to see what happens
-    print_orphans(&tree);
+    print_orphans(&store);
 
     println!("\nKEY-VALUE PAIRS:");
     println!("------------------------------------------------------------------");
-    print_values_and_verify(&tree, &[
+    print_values_and_verify(&store, &[
         // these are the 3 keys that exist
         "food",
         "pumpkin",
@@ -66,27 +68,27 @@ where
     println!("{json}");
 }
 
-fn print_root<S: Storage>(tree: &Tree<S>, version: Option<u64>) {
-    let res = tree.root(version).unwrap();
+fn print_root(store: &dyn Storage, version: Option<u64>) {
+    let res = TREE.root(store, version).unwrap();
     print_json_pretty(&res);
 }
 
-fn print_nodes<S: Storage>(tree: &Tree<S>) {
-    let res = tree.nodes(None, Some(usize::MAX)).unwrap();
+fn print_nodes(store: &dyn Storage) {
+    let res = TREE.nodes(store, None, Some(usize::MAX)).unwrap();
     print_json_pretty(&res)
 }
 
-fn print_orphans<S: Storage>(tree: &Tree<S>) {
-    let res = tree.orphans(None, Some(usize::MAX)).unwrap();
+fn print_orphans(store: &dyn Storage) {
+    let res = TREE.orphans(store, None, Some(usize::MAX)).unwrap();
     print_json_pretty(&res)
 }
 
-fn print_values_and_verify<S: Storage>(tree: &Tree<S>, keys: &[&str]) {
-    let root = tree.root(None).unwrap();
+fn print_values_and_verify(store: &dyn Storage, keys: &[&str]) {
+    let root = TREE.root(store, None).unwrap();
 
     let mut responses = vec![];
     for key in keys {
-        let res = tree.get(key.to_string(), true, None).unwrap();
+        let res = TREE.get(store, key.to_string(), true, None).unwrap();
         let proof = from_binary(res.proof.as_ref().unwrap()).unwrap();
 
         // verify the proof

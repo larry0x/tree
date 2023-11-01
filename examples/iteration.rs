@@ -3,12 +3,14 @@ use {
     tree::{Op, Tree},
 };
 
+const TREE: Tree<String, String> = Tree::new_default();
+
 fn main() {
-    let mut tree = Tree::new(MockStorage::new());
+    let mut store = MockStorage::new();
 
-    tree.initialize().unwrap();
+    TREE.initialize(&mut store).unwrap();
 
-    tree.apply([
+    TREE.apply(&mut store, [
         ("food".to_string(), Op::Insert("ramen".into())),
         ("fuzz".to_string(), Op::Insert("buzz".into())),
         ("jake".to_string(), Op::Insert("shepherd".into())),
@@ -24,7 +26,7 @@ fn main() {
     let order = Order::Ascending;
     let min = None;
     let max = None;
-    let mut iter = tree.iterate(order, min, max, None).unwrap();
+    let mut iter = TREE.iterate(&store, order, min, max, None).unwrap();
 
     // should print Some((food, ramen))
     dbg!(iter.next());

@@ -6,31 +6,52 @@ use {
     },
     cosmwasm_std::{to_binary, Order, StdResult, Storage},
     cw_storage_plus::{Bound, Item, Map, PrefixBound},
-    std::{cmp::Ordering, collections::HashMap},
+    std::{cmp::Ordering, collections::HashMap, marker::PhantomData},
 };
-
-const LAST_COMMITTED_VERSION: Item<u64>            = Item::new("v");
-const NODES:                  Map<&NodeKey, Node>  = Map::new("n");
-const ORPHANS:                Set<(u64, &NodeKey)> = Set::new("o");
 
 const DEFAULT_QUERY_BATCH_SIZE: usize = 10;
 const PRUNE_BATCH_SIZE:         usize = 10;
 
-pub struct Tree<S> {
-    store: S,
+pub struct Tree<'a, K, V> {
+    last_committed_version: Item<'a, u64>,
+    nodes: Map<'a, &'a NodeKey, Node>,
+    orphans: Set<'a, (u64, &'a NodeKey)>,
+    key_type: PhantomData<K>,
+    value_type: PhantomData<V>,
 }
 
-impl<S> Tree<S>
-where
-    S: Storage,
-{
-    pub fn new(store: S) -> Self {
-        Self { store }
+impl<'a, K, V> Default for Tree<'a, K, V> {
+    fn default() -> Self {
+        Self::new_default()
+    }
+}
+
+impl<'a, K, V> Tree<'a, K, V> {
+    pub const fn new(
+        version_namespace: &'a str,
+        node_namespace: &'a str,
+        orphan_namespace: &'a str,
+    ) -> Self {
+        Tree {
+            last_committed_version: Item::new(version_namespace),
+            nodes: Map::new(node_namespace),
+            orphans: Set::new(orphan_namespace),
+            key_type: PhantomData,
+            value_type: PhantomData,
+        }
     }
 
-    pub fn initialize(&mut self) -> Result<()> {
+    // rust still doesn't support Default trait to return a const, so we have to
+    // define this function. https://github.com/rust-lang/rust/issues/67792
+    pub const fn new_default() -> Self {
+        Self::new("v", "n", "o")
+    }
+}
+
+impl<'a, K, V> Tree<'a, K, V> {
+    pub fn initialize(&self, store: &mut dyn Storage) -> Result<()> {
         // initialize version as zero
-        LAST_COMMITTED_VERSION.save(&mut self.store, &0)?;
+        self.last_committed_version.save(store, &0)?;
 
         Ok(())
     }
@@ -50,8 +71,8 @@ where
     ///   to empty, getting ready for the next block.
     ///
     /// Note: keys must not be empty, but we don't assert it here.
-    pub fn apply(&mut self, batch: Batch) -> Result<()> {
-        let old_version = LAST_COMMITTED_VERSION.load(&self.store)?;
+    pub fn apply(&self, store: &mut dyn Storage, batch: Batch) -> Result<()> {
+        let old_version = self.last_committed_version.load(store)?;
         let old_root_key = NodeKey::root(old_version);
 
         // note: we don't save the new version to store just yet, unless we know
@@ -66,18 +87,24 @@ where
             .collect::<Vec<_>>();
 
         // recursively apply the batch, starting from the root (depth = 0)
-        match self.apply_at(new_version, &old_root_key, None, &batch)? {
+        match self.apply_at(
+            store,
+            new_version,
+            &old_root_key,
+            None,
+            &batch,
+        )? {
             OpResponse::Updated(updated_root_node) => {
-                self.set_version(new_version)?;
-                self.create_node(new_version, NibblePath::empty(), &updated_root_node)?;
+                self.set_version(store, new_version)?;
+                self.create_node(store, new_version, NibblePath::empty(), &updated_root_node)?;
                 if old_version > 0 {
-                    self.mark_node_as_orphaned(new_version, &old_root_key)?;
+                    self.mark_node_as_orphaned(store, new_version, &old_root_key)?;
                 }
             },
             OpResponse::Deleted => {
-                self.set_version(new_version)?;
+                self.set_version(store, new_version)?;
                 if old_version > 0 {
-                    self.mark_node_as_orphaned(new_version, &old_root_key)?;
+                    self.mark_node_as_orphaned(store, new_version, &old_root_key)?;
                 }
             },
             OpResponse::Unchanged => {
@@ -90,7 +117,8 @@ where
     }
 
     fn apply_at(
-        &mut self,
+        &self,
+        store: &mut dyn Storage,
         version: u64,
         current_node_key: &NodeKey,
         current_node: Option<Node>,
@@ -108,7 +136,7 @@ where
         let mut current_node = if let Some(node) = current_node {
             node
         } else {
-            NODES.may_load(&self.store, current_node_key)?.unwrap_or_else(Node::new)
+            self.nodes.may_load(store, current_node_key)?.unwrap_or_else(Node::new)
         };
 
         // make a mutable clone of the current node. after we've executed the
@@ -195,6 +223,7 @@ where
                 let child_node_key = current_node_key.child(child_version, nibble);
 
                 match self.apply_at(
+                    store,
                     version,
                     &child_node_key,
                     updated_child_nodes.remove(&nibble),
@@ -208,7 +237,7 @@ where
                         });
 
                         if child_node_key.version < version {
-                            self.mark_node_as_orphaned(version, &child_node_key)?;
+                            self.mark_node_as_orphaned(store, version, &child_node_key)?;
                         }
 
                         updated_child_nodes.insert(nibble, updated_child_node);
@@ -216,7 +245,7 @@ where
                     OpResponse::Deleted => {
                         current_node.children.remove(nibble);
                         if child_node_key.version < version {
-                            self.mark_node_as_orphaned(version, &child_node_key)?;
+                            self.mark_node_as_orphaned(store, version, &child_node_key)?;
                         }
                     },
                     OpResponse::Unchanged => (),
@@ -241,9 +270,9 @@ where
                 }
             } else {
                 let child_node_key = current_node_key.child(child.version, child.index);
-                let child_node = NODES.load(&self.store, &child_node_key)?;
+                let child_node = self.nodes.load(store, &child_node_key)?;
                 if child_node.is_leaf() {
-                    self.mark_node_as_orphaned(version, &child_node_key)?;
+                    self.mark_node_as_orphaned(store, version, &child_node_key)?;
                     return Ok(OpResponse::Updated(child_node));
                 }
             };
@@ -253,7 +282,7 @@ where
         // we can write the updated child nodes
         for (nibble, node) in updated_child_nodes {
             let nibble_path = current_node_key.nibble_path.child(nibble);
-            self.create_node(version, nibble_path, &node)?;
+            self.create_node(store, version, nibble_path, &node)?;
         }
 
         if current_node != current_node_before {
@@ -263,18 +292,19 @@ where
         Ok(OpResponse::Unchanged)
     }
 
-    pub fn prune(&mut self, up_to_version: Option<u64>) -> Result<()> {
+    pub fn prune(&self, store: &mut dyn Storage, up_to_version: Option<u64>) -> Result<()> {
         let end = up_to_version.map(PrefixBound::inclusive);
 
         loop {
-            let batch = ORPHANS
-                .prefix_range(&self.store, None, end.clone(), Order::Ascending)
+            let batch = self
+                .orphans
+                .prefix_range(store, None, end.clone(), Order::Ascending)
                 .take(PRUNE_BATCH_SIZE)
                 .collect::<StdResult<Vec<_>>>()?;
 
             for (stale_since_version, node_key) in &batch {
-                NODES.remove(&mut self.store, node_key);
-                ORPHANS.remove(&mut self.store, (*stale_since_version, node_key));
+                self.nodes.remove(store, node_key);
+                self.orphans.remove(store, (*stale_since_version, node_key));
             }
 
             if batch.len() < PRUNE_BATCH_SIZE {
@@ -285,26 +315,41 @@ where
         Ok(())
     }
 
-    fn create_node(&mut self, version: u64, nibble_path: NibblePath, node: &Node) -> StdResult<()> {
-        NODES.save(&mut self.store, &NodeKey::new(version, nibble_path), node)
+    fn version_or_default(&self, store: &dyn Storage, version: Option<u64>) -> StdResult<u64> {
+        if let Some(version) = version {
+            Ok(version)
+        } else {
+            self.last_committed_version.load(store)
+        }
+    }
+
+    fn set_version(&self, store: &mut dyn Storage, version: u64) -> StdResult<()> {
+        self.last_committed_version.save(store, &version)
+    }
+
+    fn create_node(
+        &self,
+        store: &mut dyn Storage,
+        version: u64,
+        nibble_path: NibblePath,
+        node: &Node,
+    ) -> StdResult<()> {
+        self.nodes.save(store, &NodeKey::new(version, nibble_path), node)
     }
 
     fn mark_node_as_orphaned(
-        &mut self,
+        &self,
+        store: &mut dyn Storage,
         orphaned_since_version: u64,
         node_key: &NodeKey,
     ) -> StdResult<()> {
-        ORPHANS.insert(&mut self.store, (orphaned_since_version, node_key))
+        self.orphans.insert(store, (orphaned_since_version, node_key))
     }
 
-    fn set_version(&mut self, version: u64) -> StdResult<()> {
-        LAST_COMMITTED_VERSION.save(&mut self.store, &version)
-    }
-
-    pub fn root(&self, version: Option<u64>) -> Result<RootResponse> {
-        let version = unwrap_version(&self.store, version)?;
+    pub fn root(&self, store: &dyn Storage, version: Option<u64>) -> Result<RootResponse> {
+        let version = self.version_or_default(store, version)?;
         let root_node_key = NodeKey::root(version);
-        let Some(root_node) = NODES.may_load(&self.store, &root_node_key)? else {
+        let Some(root_node) = self.nodes.may_load(store, &root_node_key)? else {
             return Err(TreeError::RootNodeNotFound { version });
         };
 
@@ -314,11 +359,18 @@ where
         })
     }
 
-    pub fn get(&self, key: String, prove: bool, version: Option<u64>) -> Result<GetResponse> {
-        let version = unwrap_version(&self.store, version)?;
+    pub fn get(
+        &self,
+        store: &dyn Storage,
+        key: String,
+        prove: bool,
+        version: Option<u64>,
+    ) -> Result<GetResponse> {
+        let version = self.version_or_default(store, version)?;
         let nibble_path = NibblePath::from(&key);
 
         let (value, proof) = self.get_at(
+            store,
             NodeKey::root(version),
             &mut nibble_path.nibbles(),
             prove,
@@ -335,11 +387,12 @@ where
 
     fn get_at(
         &self,
+        store: &dyn Storage,
         current_node_key: NodeKey,
         nibble_iter: &mut NibbleIterator,
         prove: bool,
     ) -> Result<(Option<String>, Proof)> {
-        let Some(current_node) = NODES.may_load(&self.store, &current_node_key)? else {
+        let Some(current_node) = self.nodes.may_load(store, &current_node_key)? else {
             // Node is not found. There are a few circumstances:
             // - if the node is the root,
             //   - and it's older than the latest version: it may simply be that
@@ -349,7 +402,7 @@ where
             //   - and it's newer than the latest version: this query is illegal
             // - if the node is not the root: database corrupted
             if current_node_key.nibble_path.is_empty() {
-                let latest_version = LAST_COMMITTED_VERSION.load(&self.store)?;
+                let latest_version = self.last_committed_version.load(store)?;
                 return match current_node_key.version.cmp(&latest_version) {
                     Ordering::Equal => {
                         Ok((None, vec![]))
@@ -409,6 +462,7 @@ where
         };
 
         let (value, mut proof) = self.get_at(
+            store,
             current_node_key.child(child.version, index),
             nibble_iter,
             prove,
@@ -429,25 +483,30 @@ where
     /// - `start` should be lexicographically smaller than `end`, regardless of
     ///   the iteration `order`. If `start` >= `end`, an empty iterator is
     ///   generated.
-    pub fn iterate<'a>(
+    pub fn iterate<'c, S: Storage>(
         &'a self,
+        store: &'c S,
         order: Order,
         min: Option<&str>,
         max: Option<&str>,
         version: Option<u64>,
-    ) -> Result<TreeIterator<'a, S>> {
-        let version = unwrap_version(&self.store, version)?;
+    ) -> Result<TreeIterator<'c, K, V, S>>
+    where
+        'a: 'c,
+    {
+        let version = self.version_or_default(store, version)?;
         let root_node_key = NodeKey::root(version);
-        let Some(root_node) = NODES.may_load(&self.store, &root_node_key)? else {
+        let Some(root_node) = self.nodes.may_load(store, &root_node_key)? else {
             return Err(TreeError::RootNodeNotFound { version });
         };
 
-        Ok(TreeIterator::new(&self.store, order, min, max, root_node))
+        Ok(TreeIterator::new(self, store, order, min, max, root_node))
     }
 
-    pub fn node(&self, node_key: NodeKey) -> Result<Option<NodeResponse>> {
-        Ok(NODES
-            .may_load(&self.store, &node_key)?
+    pub fn node(&self, store: &dyn Storage, node_key: NodeKey) -> Result<Option<NodeResponse>> {
+        Ok(self
+            .nodes
+            .may_load(store, &node_key)?
             .map(|node| NodeResponse {
                 node_key,
                 hash: node.hash(),
@@ -457,14 +516,15 @@ where
 
     pub fn nodes(
         &self,
+        store: &dyn Storage,
         start_after: Option<&NodeKey>,
         limit: Option<usize>,
     ) -> Result<Vec<NodeResponse>> {
         let start = start_after.map(Bound::exclusive);
         let limit = limit.unwrap_or(DEFAULT_QUERY_BATCH_SIZE);
 
-        NODES
-            .range(&self.store, start, None, Order::Ascending)
+        self.nodes
+            .range(store, start, None, Order::Ascending)
             .take(limit)
             .map(|item| {
                 let (node_key, node) = item?;
@@ -479,14 +539,15 @@ where
 
     pub fn orphans(
         &self,
+        store: &dyn Storage,
         start_after: Option<&OrphanResponse>,
         limit: Option<usize>,
     ) -> Result<Vec<OrphanResponse>> {
         let start = start_after.map(|o| Bound::exclusive((o.since_version, &o.node_key)));
         let limit = limit.unwrap_or(DEFAULT_QUERY_BATCH_SIZE);
 
-        ORPHANS
-            .items(&self.store, start, None, Order::Ascending)
+        self.orphans
+            .items(store, start, None, Order::Ascending)
             .take(limit)
             .map(|item| {
                 let (since_version, node_key) = item?;
@@ -499,7 +560,8 @@ where
     }
 }
 
-pub struct TreeIterator<'a, S> {
+pub struct TreeIterator<'a, K, V, S> {
+    tree: &'a Tree<'a, K, V>,
     store: &'a S,
     order: Order,
     min: Option<NibblePath>,
@@ -508,8 +570,9 @@ pub struct TreeIterator<'a, S> {
     visited_nodes: Vec<Node>,
 }
 
-impl<'a, S> TreeIterator<'a, S> {
+impl<'a, K, V, S> TreeIterator<'a, K, V, S> {
     pub fn new(
+        tree: &'a Tree<'a, K, V>,
         store: &'a S,
         order: Order,
         min: Option<&str>,
@@ -517,6 +580,7 @@ impl<'a, S> TreeIterator<'a, S> {
         root_node: Node,
     ) -> Self {
         Self {
+            tree,
             store,
             order,
             min: min.map(NibblePath::from),
@@ -527,7 +591,7 @@ impl<'a, S> TreeIterator<'a, S> {
     }
 }
 
-impl<'a, S> Iterator for TreeIterator<'a, S>
+impl<'a, K, V, S> Iterator for TreeIterator<'a, K, V, S>
 where
     S: Storage,
 {
@@ -535,6 +599,7 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         iterate_at(
+            self.tree,
             self.store,
             self.order,
             self.min.as_ref(),
@@ -546,7 +611,8 @@ where
     }
 }
 
-fn iterate_at(
+fn iterate_at<K, V>(
+    tree: &Tree<K, V>,
     store: &dyn Storage,
     order: Order,
     min: Option<&NibblePath>,
@@ -573,7 +639,7 @@ fn iterate_at(
         }
 
         let child_node_key = NodeKey::new(child.version, child_nibble_path);
-        let child_node = NODES.load(store, &child_node_key).unwrap(); // TODO
+        let child_node = tree.nodes.load(store, &child_node_key).unwrap(); // TODO
 
         visited_nibbles.push(child.index);
         visited_nodes.push(child_node.clone());
@@ -591,7 +657,16 @@ fn iterate_at(
 
         // if the current node has no data, then we do a depth-first search,
         // exploring the children of this child
-        if let Some(record) = iterate_at(store, order, min, max, visited_nibbles, visited_nodes, None) {
+        if let Some(record) = iterate_at(
+            tree,
+            store,
+            order,
+            min,
+            max,
+            visited_nibbles,
+            visited_nodes,
+            None,
+        ) {
             return Some(record);
         }
     }
@@ -599,11 +674,11 @@ fn iterate_at(
     // now we've gone over all the childs of the current node, and still hasn't
     // returned. this means there is no data found in any of the subtrees below
     // the current node. we need to go up one level and search in the siblings.
-    let (Some(index), _) = (visited_nibbles.pop(), visited_nodes.pop()) else {
+    let (Some(index), Some(_)) = (visited_nibbles.pop(), visited_nodes.pop()) else {
         return None;
     };
 
-    iterate_at(store, order, min, max, visited_nibbles, visited_nodes, Some(index))
+    iterate_at(tree, store, order, min, max, visited_nibbles, visited_nodes, Some(index))
 }
 
 fn iter_with_order<'a, I>(items: I, order: Order) -> Box<dyn Iterator<Item = I::Item> + 'a>
@@ -678,13 +753,7 @@ fn apply_op_to_node(node: &mut Node, (nibble_path, op): &(NibblePath, Op)) {
     };
 }
 
-fn unwrap_version(store: &dyn Storage, version: Option<u64>) -> StdResult<u64> {
-    if let Some(version) = version {
-        Ok(version)
-    } else {
-        LAST_COMMITTED_VERSION.load(store)
-    }
-}
+
 
 #[derive(Debug, PartialEq, thiserror::Error)]
 pub enum TreeError {
