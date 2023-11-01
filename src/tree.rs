@@ -64,13 +64,6 @@ where
     K: Serialize + DeserializeOwned + Clone + PartialEq + AsRef<[u8]>,
     V: Serialize + DeserializeOwned + Clone + PartialEq + AsRef<[u8]>,
 {
-    pub fn initialize(&self, store: &mut dyn Storage) -> Result<()> {
-        // initialize version as zero
-        self.last_committed_version.save(store, &0)?;
-
-        Ok(())
-    }
-
     /// Apply a batch of ops to the tree. Each op can be either 1) inserting a
     /// value at a key, or 2) deleting a key.
     ///
@@ -87,7 +80,7 @@ where
     ///
     /// Note: keys must not be empty, but we don't assert it here.
     pub fn apply(&self, store: &mut dyn Storage, batch: Batch<K, V>) -> Result<()> {
-        let old_version = self.last_committed_version.load(store)?;
+        let old_version = self.last_committed_version.may_load(store)?.unwrap_or(0);
         let old_root_key = NodeKey::root(old_version);
 
         // note: we don't save the new version to store just yet, unless we know

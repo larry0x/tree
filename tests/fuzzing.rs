@@ -2,7 +2,7 @@
 // this test takes very long to run so we don't want it be run by Github CI
 // we only manually run it:
 // $ cargo test --features fuzzing --test fuzzing -- --nocapture
-// #![cfg(feature = "fuzzing")]
+#![cfg(feature = "fuzzing")]
 
 //! Our fuzz testing strategy is as follows:
 //!
@@ -43,8 +43,6 @@ fn fuzzing() {
     let mut batches = BTreeMap::new();
     let mut log = Batch::new();
     let mut store = MockStorage::new();
-
-    TREE.initialize(&mut store).unwrap();
 
     // do the initial batch
     let batch = generate_initial_batch(&mut rng);

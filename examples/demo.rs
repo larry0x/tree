@@ -9,8 +9,6 @@ const TREE: Tree<String, String> = Tree::new_default();
 fn main() {
     let mut store = MockStorage::new();
 
-    TREE.initialize(&mut store).unwrap();
-
     TREE.apply(&mut store, [
         ("food".to_string(), Op::Insert("ramen".into())),
         ("fuzz".to_string(), Op::Insert("buzz".into())),
