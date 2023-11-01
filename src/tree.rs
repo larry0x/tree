@@ -640,7 +640,7 @@ where
     K: Serialize + DeserializeOwned + Clone + AsRef<[u8]>,
     V: Serialize + DeserializeOwned + Clone,
 {
-    type Item = (K, V);
+    type Item = Result<(K, V)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         iterate_at(
@@ -653,6 +653,7 @@ where
             &mut self.visited_nodes,
             None,
         )
+        .transpose()
     }
 }
 
@@ -666,14 +667,14 @@ fn iterate_at<K, V>(
     visited_nibbles: &mut NibblePath,
     visited_nodes: &mut Vec<Node<K, V>>,
     start_after_index: Option<Nibble>,
-) -> Option<(K, V)>
+) -> Result<Option<(K, V)>>
 where
     K: Serialize + DeserializeOwned + Clone + AsRef<[u8]>,
     V: Serialize + DeserializeOwned + Clone,
 {
     // TODO: avoid the cloning here
     let Some(current_node) = visited_nodes.last().cloned() else {
-        return None;
+        return Ok(None);
     };
 
     // going through the node's children. pushing the first one that's in
@@ -689,7 +690,7 @@ where
         }
 
         let child_node_key = NodeKey::new(child.version, child_nibble_path);
-        let child_node = tree.nodes.load(store, &child_node_key).unwrap(); // TODO
+        let child_node = tree.nodes.load(store, &child_node_key)?;
 
         visited_nibbles.push(child.index);
         visited_nodes.push(child_node.clone());
@@ -701,7 +702,7 @@ where
             // compare with the max because any key greater than max should have
             // already been dropped when comparing `nibbles_in_range`
             if key_in_range(&key, min) {
-                return Some((key, value));
+                return Ok(Some((key, value)));
             }
         }
 
@@ -716,8 +717,8 @@ where
             visited_nibbles,
             visited_nodes,
             None,
-        ) {
-            return Some(record);
+        )? {
+            return Ok(Some(record));
         }
     }
 
@@ -725,7 +726,7 @@ where
     // returned. this means there is no data found in any of the subtrees below
     // the current node. we need to go up one level and search in the siblings.
     let (Some(index), Some(_)) = (visited_nibbles.pop(), visited_nodes.pop()) else {
-        return None;
+        return Ok(None);
     };
 
     iterate_at(tree, store, order, min, max, visited_nibbles, visited_nodes, Some(index))
