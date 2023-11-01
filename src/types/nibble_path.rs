@@ -143,13 +143,7 @@ impl<T: AsRef<[u8]>> From<T> for NibblePath {
 
 impl PartialOrd for NibblePath {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        // if the bytes are not the same, then we simply compare the types
-        // otherwise, we additionally compare the num_nibbles
-        let bytes_order = self.bytes.partial_cmp(&other.bytes);
-        if bytes_order == Some(Ordering::Equal) {
-            return self.num_nibbles.partial_cmp(&other.num_nibbles);
-        }
-        bytes_order
+        Some(self.cmp(other))
     }
 }
 

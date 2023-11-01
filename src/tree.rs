@@ -625,6 +625,7 @@ where
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn iterate_at<K, V>(
     tree: &Tree<K, V>,
     store: &dyn Storage,
