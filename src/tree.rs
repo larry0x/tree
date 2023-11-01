@@ -190,14 +190,37 @@ where
         } else {
             let nibble_range_iter = NibbleRangeIterator::new(batch, current_node_key.depth());
             for NibbleRange { nibble, start, end } in nibble_range_iter {
-                self.apply_at_index(
+                let child = current_node.children.get(nibble);
+                let child_version = child.map(|c| c.version).unwrap_or(version);
+                let child_node_key = current_node_key.child(child_version, nibble);
+
+                match self.apply_at(
                     version,
-                    current_node_key,
-                    &mut current_node,
-                    nibble,
+                    &child_node_key,
+                    updated_child_nodes.remove(&nibble),
                     &batch[start..=end],
-                    &mut updated_child_nodes,
-                )?;
+                )? {
+                    OpResponse::Updated(updated_child_node) => {
+                        current_node.children.insert(Child {
+                            index: nibble,
+                            version,
+                            hash: updated_child_node.hash(),
+                        });
+
+                        if child_node_key.version < version {
+                            self.mark_node_as_orphaned(version, &child_node_key)?;
+                        }
+
+                        updated_child_nodes.insert(nibble, updated_child_node);
+                    },
+                    OpResponse::Deleted => {
+                        current_node.children.remove(nibble);
+                        if child_node_key.version < version {
+                            self.mark_node_as_orphaned(version, &child_node_key)?;
+                        }
+                    },
+                    OpResponse::Unchanged => (),
+                }
             }
         }
 
@@ -238,45 +261,6 @@ where
         }
 
         Ok(OpResponse::Unchanged)
-    }
-
-    fn apply_at_index(
-        &mut self,
-        version: u64,
-        current_node_key: &NodeKey,
-        current_node: &mut Node,
-        index: Nibble,
-        batch: &[(NibblePath, Op)],
-        updated_child_nodes: &mut HashMap<Nibble, Node>,
-    ) -> Result<()> {
-        let child = current_node.children.get(index);
-        let child_version = child.map(|c| c.version).unwrap_or(version);
-        let child_node_key = current_node_key.child(child_version, index);
-
-        match self.apply_at(version, &child_node_key, updated_child_nodes.remove(&index), batch)? {
-            OpResponse::Updated(updated_child_node) => {
-                current_node.children.insert(Child {
-                    index,
-                    version,
-                    hash: updated_child_node.hash(),
-                });
-
-                if child_node_key.version < version {
-                    self.mark_node_as_orphaned(version, &child_node_key)?;
-                }
-
-                updated_child_nodes.insert(index, updated_child_node);
-            },
-            OpResponse::Deleted => {
-                current_node.children.remove(index);
-                if child_node_key.version < version {
-                    self.mark_node_as_orphaned(version, &child_node_key)?;
-                }
-            },
-            OpResponse::Unchanged => (),
-        }
-
-        Ok(())
     }
 
     pub fn prune(&mut self, up_to_version: Option<u64>) -> Result<()> {
