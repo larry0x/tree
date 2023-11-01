@@ -816,6 +816,7 @@ dependencies = [
  "serde_json",
  "test-case",
  "thiserror",
+ "tree",
 ]
 
 [[package]]

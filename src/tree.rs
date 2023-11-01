@@ -1,17 +1,23 @@
 use {
     crate::{
         Batch, Child, GetResponse, Nibble, NibbleIterator, NibblePath, NibbleRange,
-        NibbleRangeIterator, Node, NodeKey, NodeResponse, Op, OpResponse, OrphanResponse, Proof,
-        ProofNode, Record, RootResponse, Set,
+        NibbleRangeIterator, Node, NodeKey, Op, OpResponse, Proof, ProofNode, Record, RootResponse,
+        Set,
     },
     cosmwasm_std::{to_binary, Order, StdResult, Storage},
-    cw_storage_plus::{Bound, Item, Map, PrefixBound},
+    cw_storage_plus::{Item, Map, PrefixBound},
     serde::{de::DeserializeOwned, ser::Serialize},
     std::{cmp::Ordering, collections::HashMap, marker::PhantomData},
 };
+#[cfg(feature = "debug")]
+use {
+    crate::{NodeResponse, OrphanResponse},
+    cw_storage_plus::Bound,
+};
 
+const PRUNE_BATCH_SIZE: usize = 10;
+#[cfg(feature = "debug")]
 const DEFAULT_QUERY_BATCH_SIZE: usize = 10;
-const PRUNE_BATCH_SIZE:         usize = 10;
 
 pub struct Tree<'a, K, V> {
     version: Item<'a, u64>,
@@ -511,6 +517,7 @@ where
         Ok(TreeIterator::new(self, store, order, min, max, root_node))
     }
 
+    #[cfg(feature = "debug")]
     pub fn node(
         &self,
         store: &dyn Storage,
@@ -526,6 +533,7 @@ where
             }))
     }
 
+    #[cfg(feature = "debug")]
     pub fn nodes(
         &self,
         store: &dyn Storage,
@@ -549,6 +557,7 @@ where
             .collect()
     }
 
+    #[cfg(feature = "debug")]
     pub fn orphans(
         &self,
         store: &dyn Storage,

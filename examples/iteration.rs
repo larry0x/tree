@@ -22,8 +22,8 @@ fn main() {
 
     // adjust min, max, and order as you like to test things out
     let order = Order::Ascending;
-    let min = None;
-    let max = None;
+    let min = Some("fxxx");
+    let max = Some("pzzz");
     let mut iter = TREE.iterate(&store, order, min, max, None).unwrap();
 
     // should print Some((food, ramen))

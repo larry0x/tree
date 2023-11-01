@@ -11,6 +11,10 @@ publish      = false
 
 [features]
 default = []
+# Add a few query functions for debug purpose, which are typically not needed
+# for normal usage
+debug   = []
+# Fuzz testing
 fuzzing = []
 
 [dependencies]
@@ -39,6 +43,8 @@ rand          = "0.8"
 random-string = "1"
 serde_json    = "1"
 test-case     = "3"
+# enable the debug feature for the example
+tree          = { path = ".", features = ["debug"] }
 
 [profile.release]
 codegen-units    = 1
