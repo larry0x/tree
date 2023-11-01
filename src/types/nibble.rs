@@ -36,17 +36,6 @@ impl fmt::Debug for Nibble {
     }
 }
 
-// TODO: this is repetitive code, can we get rid of it? maybe make a macro?
-impl From<usize> for Nibble {
-    fn from(number: usize) -> Self {
-        if number > 0x0f {
-            panic!("nibble value cannot be greater than 0x0f");
-        }
-
-        Self(number as u8)
-    }
-}
-
 impl Serialize for Nibble {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

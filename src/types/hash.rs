@@ -11,17 +11,17 @@ use {
 
 pub const HASH_LEN: usize = blake3::OUT_LEN;
 
-pub(crate) fn hash_child(hasher: &mut Hasher, child: &Child) {
+pub(super) fn hash_child(hasher: &mut Hasher, child: &Child) {
     hasher.update(&[child.index.byte()]);
     hasher.update(child.hash.as_bytes());
 }
 
-pub(crate) fn hash_proof_child(hasher: &mut Hasher, child: &ProofChild) {
+pub(super) fn hash_proof_child(hasher: &mut Hasher, child: &ProofChild) {
     hasher.update(&[child.index.byte()]);
     hasher.update(child.hash.as_bytes());
 }
 
-pub(crate) fn hash_data<K: AsRef<[u8]>, V: AsRef<[u8]>>(hasher: &mut Hasher, data: &Record<K, V>) {
+pub(super) fn hash_data<K: AsRef<[u8]>, V: AsRef<[u8]>>(hasher: &mut Hasher, data: &Record<K, V>) {
     hasher.update((data.key.as_ref().len() as u16).to_be_bytes().as_slice());
     hasher.update(data.key.as_ref());
     hasher.update(data.value.as_ref());

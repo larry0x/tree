@@ -11,7 +11,6 @@ use {
     std::{any::type_name, cmp::Ordering, fmt, ops::Range},
 };
 
-// TODO: impl Ord
 #[derive(Clone, PartialEq, Eq, Hash, JsonSchema)]
 pub struct NibblePath {
     pub num_nibbles: usize,
@@ -66,7 +65,7 @@ impl NibblePath {
 
     /// Return a new NibblePath whose length is at most `n`. Nibbles above `n`
     /// are dropped. Only works if `n` < current length.
-    pub(crate) fn crop(&self, n: usize) -> Self {
+    pub fn crop(&self, n: usize) -> Self {
         assert!(n < self.num_nibbles);
 
         let mut bytes = self.bytes[..(n / 2)].to_vec();
