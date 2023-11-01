@@ -6,3 +6,6 @@ lint:
 
 test:
   cargo test
+
+fuzz:
+  cargo test --features fuzzing --test fuzzing -- --nocapture
