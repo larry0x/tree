@@ -62,10 +62,7 @@ where
         // to NibblePaths
         let batch = batch
             .into_iter()
-            .map(|(key, op)| {
-                let nibble_path = NibblePath::from(key.as_bytes().to_vec());
-                (nibble_path, op)
-            })
+            .map(|(key, op)| (NibblePath::from(key), op))
             .collect::<Vec<_>>();
 
         // recursively apply the batch, starting from the root (depth = 0)
@@ -130,7 +127,11 @@ where
         // we call this the "dangling_data"
         let mut dangling_data = None;
         if let Some(Record { key, .. }) = &current_node.data {
-            if key.as_bytes() != current_node_key.nibble_path.bytes {
+            // in a previously bugged implementation, here we simply compared
+            // key.as_bytes() and current_nibble_path.bytes; this misses the
+            // case where the nibble path may have odd number of nibbles and
+            // the last nibble in the key may be zero
+            if NibblePath::from(key) != current_node_key.nibble_path {
                 dangling_data = current_node.data.take();
             }
         }
@@ -165,14 +166,11 @@ where
         // willing to make (iteration is such as important feature)
         let mut owned_batch;
         let batch = if let Some(Record { key, value }) = dangling_data {
+            let nibble_path = NibblePath::from(key);
             owned_batch = batch.to_vec();
-            match batch.binary_search_by_key(&key.as_bytes(), |(nibble_path, _)| &nibble_path.bytes) {
-                Err(pos) => {
-                    let nibble_path = NibblePath::from(key.as_bytes().to_vec());
-                    owned_batch.insert(pos, (nibble_path, Op::Insert(value.clone())));
-                },
-                Ok(_) => (),
-            };
+            if let Err(pos) = batch.binary_search_by_key(&&nibble_path, |(nibble_path, _)| nibble_path) {
+                owned_batch.insert(pos, (nibble_path, Op::Insert(value.clone())));
+            }
             owned_batch.as_slice()
         } else {
             batch
@@ -334,7 +332,7 @@ where
 
     pub fn get(&self, key: String, prove: bool, version: Option<u64>) -> Result<GetResponse> {
         let version = unwrap_version(&self.store, version)?;
-        let nibble_path = NibblePath::from(key.as_bytes().to_vec());
+        let nibble_path = NibblePath::from(&key);
 
         let (value, proof) = self.get_at(
             NodeKey::root(version),
@@ -394,7 +392,7 @@ where
         // if the node has data and the key matches the request key, then we
         // have found it
         if let Some(Record { key, value }) = current_node.data.clone() {
-            if key.as_bytes() == nibble_iter.nibble_path().bytes {
+            if NibblePath::from(&key) == nibble_iter.nibble_path() {
                 let proof = if prove {
                     vec![ProofNode::from_node(current_node.clone(), None, true)]
                 } else {
@@ -537,8 +535,8 @@ impl<'a, S> TreeIterator<'a, S> {
         Self {
             store,
             order,
-            min: min.map(|s| NibblePath::from(s.as_bytes().to_vec())),
-            max: max.map(|s| NibblePath::from(s.as_bytes().to_vec())),
+            min: min.map(NibblePath::from),
+            max: max.map(NibblePath::from),
             visited_nibbles: NibblePath::empty(),
             visited_nodes: vec![root_node],
         }

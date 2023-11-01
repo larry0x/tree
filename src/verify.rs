@@ -1,7 +1,7 @@
 use crate::{Hash, NibblePath, Proof, ProofChild, Record};
 
 pub fn verify_membership(root_hash: &Hash, key: &str, value: &str, proof: &Proof) -> Result<()> {
-    let nibble_path = NibblePath::from(key.as_bytes().to_vec());
+    let nibble_path = NibblePath::from(key);
 
     // compute the hash of the node that contains the data of interest
     // it should be the first element in the proof
@@ -17,7 +17,7 @@ pub fn verify_membership(root_hash: &Hash, key: &str, value: &str, proof: &Proof
 
 pub fn verify_non_membership(root_hash: &Hash, key: &str, proof: &Proof) -> Result<()> {
     let proof_len = proof.len();
-    let nibble_path = NibblePath::from(key.as_bytes().to_vec());
+    let nibble_path = NibblePath::from(key);
 
     let Some(node) = proof.first() else {
         return Err(VerificationError::ProofEmpty);

@@ -8,7 +8,7 @@ use {
         de::{self, Deserialize, Deserializer, Visitor},
         ser::{Serialize, Serializer},
     },
-    std::{any::type_name, fmt, ops::Range},
+    std::{any::type_name, cmp::Ordering, fmt, ops::Range},
 };
 
 // TODO: impl Ord
@@ -139,11 +139,47 @@ impl From<Hash> for NibblePath {
     }
 }
 
-impl From<Vec<u8>> for NibblePath {
-    fn from(bytes: Vec<u8>) -> Self {
+// impl From<Vec<u8>> for NibblePath {
+//     fn from(bytes: Vec<u8>) -> Self {
+//         Self {
+//             num_nibbles: bytes.len() * 2,
+//             bytes,
+//         }
+//     }
+// }
+
+// in this tech demo we use strings as keys and values, so we implement this for
+// convenience. in practice we don't need this impl
+impl<T: AsRef<str>> From<T> for NibblePath {
+    fn from(s: T) -> Self {
+        let bytes = s.as_ref().as_bytes().to_vec();
         Self {
             num_nibbles: bytes.len() * 2,
             bytes,
+        }
+    }
+}
+
+impl PartialOrd for NibblePath {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        // if the bytes are not the same, then we simply compare the types
+        // otherwise, we additionally compare the num_nibbles
+        let bytes_order = self.bytes.partial_cmp(&other.bytes);
+        if bytes_order == Some(Ordering::Equal) {
+            return self.num_nibbles.partial_cmp(&other.num_nibbles);
+        }
+        bytes_order
+    }
+}
+
+impl Ord for NibblePath {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // if the bytes are not the same, then we simply compare the types
+        // otherwise, we additionally compare the num_nibbles
+        match self.bytes.cmp(&other.bytes) {
+            Ordering::Less => Ordering::Less,
+            Ordering::Greater => Ordering::Greater,
+            Ordering::Equal => self.num_nibbles.cmp(&other.num_nibbles),
         }
     }
 }
