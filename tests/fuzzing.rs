@@ -86,6 +86,10 @@ fn generate_subsequent_batch<R: Rng>(log: &Batch, rng: &mut R) -> Batch {
     batch
 }
 
+/// The log is a map storing the last op that was done to a key. By looking at
+/// it we can tell whether a key is in the tree or not. If the last op was an
+/// insert, then it's in the tree. It's the last op is a delete, or if there
+/// hasn't been any op done under this key, then it's not in the tree.
 fn write_to_log(log: &mut Batch, batch: &Batch) {
     for (key, op) in batch {
         log.insert(key.clone(), op.clone());
@@ -130,12 +134,14 @@ fn fuzzing() {
 
     tree.initialize().unwrap();
 
+    // do the initial batch
     let batch = generate_initial_batch(&mut rng);
     batches.insert(1, batch.clone());
     write_to_log(&mut log, &batch);
     tree.apply(batch).unwrap();
     check(&tree, &log, 1).unwrap();
 
+    // do the subsequent 99 batches
     for i in 2..=100 {
         let batch = generate_subsequent_batch(&log, &mut rng);
         batches.insert(i, batch.clone());
