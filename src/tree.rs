@@ -523,8 +523,8 @@ where
         &'a self,
         store: &'c S,
         order: Order,
-        min: Option<&str>,
-        max: Option<&str>,
+        min: Option<&K>,
+        max: Option<&K>,
         version: Option<u64>,
     ) -> Result<TreeIterator<'c, K, V, S>>
     where
@@ -613,13 +613,16 @@ pub struct TreeIterator<'a, K, V, S> {
     visited_nodes: Vec<Node<K, V>>,
 }
 
-impl<'a, K, V, S> TreeIterator<'a, K, V, S> {
+impl<'a, K, V, S> TreeIterator<'a, K, V, S>
+where
+    K: AsRef<[u8]>,
+{
     pub fn new(
         tree: &'a Tree<'a, K, V>,
         store: &'a S,
         order: Order,
-        min: Option<&str>,
-        max: Option<&str>,
+        min: Option<&K>,
+        max: Option<&K>,
         root_node: Node<K, V>,
     ) -> Self {
         Self {
