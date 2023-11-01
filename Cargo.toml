@@ -14,7 +14,7 @@ default = []
 fuzzing = []
 
 [dependencies]
-blake3          = { version = "1", features = ["serde"] }
+blake3          = "1"
 cosmwasm-schema = "1.4"
 cosmwasm-std    = "1.4"
 # This fork of cw-storage-plus makes two changes:
